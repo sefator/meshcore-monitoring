@@ -1,0 +1,23 @@
+# dependencies
+node_modules
+
+# bun
+bun.lockb
+
+# build artifacts
+dist
+.queue
+
+# environment
+.env
+*.env
+edge/.env.local
+ingest/.env.local
+
+# logs
+*.log
+
+# editor
+.DS_Store
+.idea
+*.swp

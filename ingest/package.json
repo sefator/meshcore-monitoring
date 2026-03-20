@@ -1,0 +1,28 @@
+{
+  "name": "@meshcore/monitoring-ingest",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "start": "NODE_ENV=production bun run src/server.ts",
+    "lint": "bun x eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.26.2",
+    "fastify-raw-body": "^5.0.0",
+    "nanoid": "^4.0.2",
+    "postgres": "^3.4.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^7.0.2"
+  }
+}

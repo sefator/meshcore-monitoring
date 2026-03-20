@@ -1,0 +1,4 @@
+transpiler = "swc"
+
+[define]
+"process.env.NODE_ENV" = "\"development\""

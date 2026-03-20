@@ -1,0 +1,27 @@
+{
+  "name": "@meshcore/monitoring-edge",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "lint": "bun x eslint ."
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
+    "@liamcottle/meshcore.js": "^1.12.0",
+    "bun": "^1.1.30",
+    "dotenv": "^16.4.5",
+    "nanoid": "^5.1.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^7.0.2"
+  }
+}

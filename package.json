@@ -1,0 +1,28 @@
+{
+  "name": "meshcore-monitoring",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Edge and central services for meshcore monitoring",
+  "workspaces": [
+    "edge",
+    "ingest"
+  ],
+  "scripts": {
+    "lint": "bun run --cwd edge lint && bun run --cwd ingest lint",
+    "format": "bun x prettier --write ."
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "@types/node": "^25.5.0",
+    "prettier": "3.2.5"
+  },
+  "packageManager": "bun@1.1.30",
+  "module": "index.ts",
+  "type": "module",
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@liamcottle/meshcore.js": "1.11.0"
+  }
+}

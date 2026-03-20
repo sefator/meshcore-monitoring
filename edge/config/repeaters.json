@@ -1,0 +1,11 @@
+{
+  "repeaters": [
+    {
+      "repeater_id": "hermanice",
+      "public_key_hex": "123473069fb95720072fc43413f104831320f41282aca10adfb9d1e72d5b11a2",
+      "label": "Hermanice",
+      "enabled": true,
+      "tags": ["demo"]
+    }
+  ]
+}
