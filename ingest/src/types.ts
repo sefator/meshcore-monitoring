@@ -20,7 +20,9 @@ export const neighborsItemSchema = z.object({
   repeater_id: z.string(),
   neighbor_id: z.string(),
   link_quality: z.number().min(0).max(1).optional(),
-  hops: z.number().int().nonnegative().optional()
+  hops: z.number().int().nonnegative().optional(),
+  rssi: z.number().optional(),
+  snr: z.number().optional()
 });
 
 export const heartbeatSchema = z.object({

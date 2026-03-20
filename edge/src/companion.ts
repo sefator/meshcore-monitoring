@@ -1,8 +1,4 @@
-import {
-  CayenneLpp,
-  TCPConnection,
-  NodeJSSerialConnection,
-} from "@liamcottle/meshcore.js";
+import { TCPConnection, NodeJSSerialConnection } from "@liamcottle/meshcore.js";
 import type { MetricSample, NeighborSample, Repeater } from "./types.js";
 import { config } from "./config.js";
 import { log } from "./log.js";
@@ -17,10 +13,13 @@ type CompanionConnection = {
     password: string,
     timeoutMs?: number,
   ): Promise<unknown>;
-  getTelemetry(
+  getNeighbours(
     publicKey: Uint8Array,
-    timeoutMs: number,
-  ): Promise<TelemetryResponse>;
+    count?: number,
+    offset?: number,
+    orderBy?: number,
+    pubKeyPrefixLength?: number,
+  ): Promise<MeshcoreNeighboursResponse>;
   findContactByPublicKeyPrefix(
     prefix: Uint8Array | Buffer,
   ): Promise<CompanionContact | null>;
@@ -50,9 +49,25 @@ type CompanionStats = {
   n_flood_dups: number;
 };
 
-type TelemetryResponse = {
-  pubKeyPrefix: Uint8Array;
-  lppSensorData: Uint8Array;
+// @liamcottle/meshcore.js 1.11.0 parses each neighbor from getNeighbours() as:
+// - publicKeyPrefix: readBytes(pubKeyPrefixLength)
+// - heardSecondsAgo: uint32
+// - snr: int8 / 4
+// No per-neighbor rssi, link_quality, or hops are exposed by this API.
+type MeshcoreNeighbour = {
+  publicKeyPrefix: Uint8Array;
+  heardSecondsAgo: number;
+  snr: number;
+};
+
+type MeshcoreNeighboursResponse = {
+  totalNeighboursCount: number;
+  neighbours: MeshcoreNeighbour[];
+};
+
+type NeighborFetchResult = {
+  neighbors: NeighborSample[];
+  neighborsCount?: number;
 };
 
 function derivePublicKeyPrefix(hexKey: string) {
@@ -153,35 +168,83 @@ function mapStatusToMetric(
   };
 }
 
-function decodeTelemetry(
-  neighborPayload: Uint8Array,
+function mapMeshcoreNeighbourToSample(
+  neighbor: MeshcoreNeighbour,
   repeater: Repeater,
   now: Date,
-): NeighborSample[] {
-  const telemetry = CayenneLpp.parse(neighborPayload);
-  const samples: NeighborSample[] = [];
-  let currentNeighbor: NeighborSample | null = null;
-  for (const record of telemetry) {
-    if (record.type === CayenneLpp.LPP_GENERIC_SENSOR && record.channel === 1) {
-      if (currentNeighbor) {
-        samples.push(currentNeighbor);
+): NeighborSample {
+  return {
+    time: now.toISOString(),
+    repeater_id: repeater.repeaterId,
+    neighbor_id: Buffer.from(neighbor.publicKeyPrefix).toString("hex"),
+    snr: Number.isFinite(neighbor.snr) ? neighbor.snr : undefined,
+  };
+}
+
+async function fetchNeighborSamples(
+  conn: CompanionConnection,
+  contact: CompanionContact,
+  repeater: Repeater,
+  now: Date,
+): Promise<NeighborFetchResult> {
+  try {
+    const firstPage = await conn.getNeighbours(contact.publicKey);
+    const neighbours = [...firstPage.neighbours];
+    let offset = neighbours.length;
+
+    while (offset < firstPage.totalNeighboursCount) {
+      const page = await conn.getNeighbours(
+        contact.publicKey,
+        Math.min(255, firstPage.totalNeighboursCount - offset),
+        offset,
+      );
+      if (!page.neighbours.length) {
+        log.warn(
+          "neighbor paging returned no results",
+          repeater.repeaterId,
+          `offset=${offset}`,
+          `reported_total=${firstPage.totalNeighboursCount}`,
+        );
+        break;
       }
-      const neighborIdHex = record.value.toString(16).padStart(8, "0");
-      currentNeighbor = {
-        time: now.toISOString(),
-        repeater_id: repeater.repeaterId,
-        neighbor_id: neighborIdHex,
-      };
-    } else if (currentNeighbor && record.type === CayenneLpp.LPP_PERCENTAGE) {
-      currentNeighbor.link_quality = record.value / 100;
-    } else if (currentNeighbor && record.type === CayenneLpp.LPP_VOLTAGE) {
-      currentNeighbor.rssi = record.value;
+      neighbours.push(...page.neighbours);
+      offset += page.neighbours.length;
     }
+
+    const neighbors = neighbours.map((neighbor) =>
+      mapMeshcoreNeighbourToSample(neighbor, repeater, now),
+    );
+    const neighborsCount =
+      neighbors.length === firstPage.totalNeighboursCount
+        ? firstPage.totalNeighboursCount
+        : neighbors.length;
+
+    if (neighbors.length !== firstPage.totalNeighboursCount) {
+      log.warn(
+        "neighbor count mismatch",
+        repeater.repeaterId,
+        `reported=${firstPage.totalNeighboursCount}`,
+        `collected=${neighbors.length}`,
+      );
+    } else if (neighbors.length === 0) {
+      log.info("neighbor list empty", repeater.repeaterId);
+    } else {
+      log.info(
+        "neighbor list fetched",
+        repeater.repeaterId,
+        `${neighbors.length} neighbors`,
+      );
+    }
+
+    return { neighbors, neighborsCount };
+  } catch (err) {
+    if (err === "timeout") {
+      log.warn("neighbor fetch timeout", repeater.repeaterId);
+    } else {
+      log.error("neighbor fetch failed", repeater.repeaterId, err);
+    }
+    return { neighbors: [] };
   }
-  if (currentNeighbor) {
-    samples.push(currentNeighbor);
-  }
-  return samples;
 }
 
 export async function readRepeaterMetrics(
@@ -191,7 +254,7 @@ export async function readRepeaterMetrics(
   const now = new Date();
 
   log.info("reading meshcore status", repeater.repeaterId);
-  const [status, telemetry] = await withConnection(async (conn) => {
+  const [status, neighborResult] = await withConnection(async (conn) => {
     const contact = await resolveContact(conn, repeater, publicKeyPrefix);
     log.debug(contact);
     if (contact.advName) {
@@ -218,43 +281,12 @@ export async function readRepeaterMetrics(
         return stats;
       });
 
-    const telemetry:TelemetryResponse | null =  await conn
-      .getTelemetry(contact.publicKey, config.companion.telemetryTimeoutMs)
-      .then((payload) => {
-        if (payload) {
-          log.debug(
-            "telemetry payload received",
-            repeater.repeaterId,
-            payload.lppSensorData.length,
-          );
-        }
-        return payload;
-      })
-      .catch((err: unknown) => {
-        if (err === "timeout") {
-          log.warn("telemetry timeout", repeater.repeaterId);
-          return null;
-        }
-        log.error("telemetry error", repeater.repeaterId, err);
-        throw err;
-      });
-    return [status, telemetry];
+    const neighbors = await fetchNeighborSamples(conn, contact, repeater, now);
+    return [status, neighbors];
   });
 
   const metrics = mapStatusToMetric(repeater, status, now);
-  const neighbors =
-    telemetry?.lppSensorData &&
-    Buffer.from(telemetry.pubKeyPrefix).equals(Buffer.from(publicKeyPrefix))
-      ? decodeTelemetry(telemetry.lppSensorData, repeater, now)
-      : [];
-  if (neighbors.length) {
-    log.info(
-      "decoded neighbor telemetry",
-      repeater.repeaterId,
-      `${neighbors.length} neighbors`,
-    );
-  } else {
-    log.debug("no neighbor telemetry", repeater.repeaterId);
-  }
+  metrics.neighbors_count = neighborResult.neighborsCount;
+  const neighbors = neighborResult.neighbors;
   return { metrics, neighbors };
 }

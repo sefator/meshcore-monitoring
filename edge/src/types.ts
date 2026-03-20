@@ -15,6 +15,7 @@ export type MetricSample = {
   power?: "mains" | "battery" | "solar" | "unknown";
   uptime?: number;
   link_quality?: number;
+  // From meshcore getNeighbours(). Should match neighbors.length when all pages are collected.
   neighbors_count?: number;
   packets_sent?: number;
   packets_recv?: number;
@@ -24,7 +25,9 @@ export type MetricSample = {
 export type NeighborSample = {
   time: string;
   repeater_id: string;
+  // Hex-encoded neighbor identifier; getNeighbours() returns a publicKeyPrefix, not a full public key.
   neighbor_id: string;
+  // @liamcottle/meshcore.js getNeighbours() currently exposes only publicKeyPrefix, heardSecondsAgo, and snr.
   link_quality?: number;
   hops?: number;
   rssi?: number;

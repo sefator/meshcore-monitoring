@@ -46,8 +46,14 @@ CREATE TABLE IF NOT EXISTS neighbors (
   repeater_id text REFERENCES repeaters(repeater_id),
   neighbor_id text,
   link_quality double precision,
-  hops integer
+  hops integer,
+  rssi double precision,
+  snr double precision
 );
+ALTER TABLE IF EXISTS neighbors
+  ADD COLUMN IF NOT EXISTS rssi double precision;
+ALTER TABLE IF EXISTS neighbors
+  ADD COLUMN IF NOT EXISTS snr double precision;
 SELECT create_hypertable('neighbors', 'time', if_not_exists => true);
 SELECT add_compression_policy('neighbors', INTERVAL '30 days');
 

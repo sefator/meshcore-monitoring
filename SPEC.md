@@ -35,12 +35,12 @@ in TimescaleDB for visualization in Grafana.
 
 ### Jittered Scheduling
 - Deterministic jitter based on repeater_id + date to spread reads evenly.
-- Low concurrency (1-2 active polls) to protect mesh bandwidth.
+- Current implementation is sequential; `POLL_CONCURRENCY` exists in edge config but is not used yet.
 
 ### Offline Behavior
 - Disk-backed queue for batches.
-- Exponential backoff on send failures.
-- On recovery, drain queue in order with rate limiting.
+- On send failure, the edge writes the batch to `.queue/`.
+- Queue drain retries files in sorted order and stops on the first failure.
 
 ## Payload Contract
 ### Envelope
@@ -72,6 +72,14 @@ in TimescaleDB for visualization in Grafana.
 }
 ```
 
+`neighbors_count` should come from meshcore `connection.getNeighbours(...).totalNeighboursCount`.
+If all neighbor pages are collected for that sample, it should also equal the number of emitted
+neighbor rows for the same repeater/time.
+
+Current contract caveat: ingest validates `battery` as an integer `0..100`, while the current
+edge code derives `battery` from `batt_milli_volts` as a decimal value. Treat battery data as
+provisional until that mismatch is resolved.
+
 ### Neighbors Item
 ```json
 {
@@ -79,9 +87,17 @@ in TimescaleDB for visualization in Grafana.
   "repeater_id": "string",
   "neighbor_id": "string",
   "link_quality": 0.71,
-  "hops": 2
+  "hops": 2,
+  "rssi": -97,
+  "snr": 8.5
 }
 ```
+
+When sourced from meshcore `connection.getNeighbours(...)`, `neighbor_id` is the hex-encoded
+`publicKeyPrefix` returned by the library (default request prefix length is 8 bytes, so 16 hex
+characters). In the installed `@liamcottle/meshcore.js` package, each neighbor currently exposes
+`publicKeyPrefix`, `heardSecondsAgo`, and `snr`; `rssi`, `link_quality`, and `hops` are not
+returned by that API and therefore remain optional until another source provides them.
 
 ### Heartbeat
 ```json
@@ -93,7 +109,8 @@ in TimescaleDB for visualization in Grafana.
 ```
 
 ### Compression
-- Gzip for payload bodies is supported and recommended.
+- Gzip payload bodies are part of the intended design, but are not implemented in the current edge
+  or ingest code.
 
 ## Signing and Authentication
 ### Source of Truth
@@ -108,9 +125,9 @@ in TimescaleDB for visualization in Grafana.
 ## Central API
 ### Endpoints
 - POST /ingest
-- POST /devices/register (admin)
 - GET /health
-- GET /metrics (optional)
+- Planned, not implemented: POST /devices/register (admin)
+- Planned, not implemented: GET /metrics (optional)
 
 ### /ingest Behavior
 - Validate JWT token (signature, iat skew, exp).
@@ -120,18 +137,18 @@ in TimescaleDB for visualization in Grafana.
 
 ## Database Schema (TimescaleDB)
 ### Base Tables
-- devices(device_id, public_key_fingerprint, location_id, created_at, revoked_at)
+- devices(device_id, public_key, signature_algo, location_id, revoked_at)
 - locations(location_id, name, network_id, metadata)
 - repeaters(repeater_id, location_id, label, identifiers, metadata)
 
 ### Hypertables
 - metrics(time, repeater_id, location_id, rssi, snr, battery, power, uptime,
   link_quality, neighbors_count)
-- neighbors(time, repeater_id, neighbor_id, link_quality, hops)
+- neighbors(time, repeater_id, neighbor_id, link_quality, hops, rssi, snr)
 - device_heartbeats(time, device_id, status, version)
 
 ### Policies
-- Compression after 7-30 days.
+- Compression after 30 days on all hypertables.
 - Indefinite retention (no drop policy).
 
 ## Docker Compose (Minimal)
@@ -143,7 +160,7 @@ TLS termination is provided upstream (Caddy/Nginx/Traefik).
 
 ## Observability
 - Ingest service exposes /health.
-- Optional /metrics for Prometheus.
+- Optional /metrics for Prometheus is not implemented.
 - Grafana dashboards for location, repeater, and neighbor graph trends.
 
 ## Open Tasks for Implementation

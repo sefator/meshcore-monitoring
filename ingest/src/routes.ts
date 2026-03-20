@@ -46,35 +46,47 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     const batch = parsed.data;
 
-    for (const metric of batch.metrics) {
-      const rssi = metric.rssi ?? null;
-      const snr = metric.snr ?? null;
-      const battery = metric.battery ?? null;
-      const power = metric.power ?? null;
-      const uptime = metric.uptime ?? null;
-      const linkQuality = metric.link_quality ?? null;
-      const neighborsCount = metric.neighbors_count ?? null;
-      const packetsSent = metric.packets_sent ?? null;
-      const packetsRecv = metric.packets_recv ?? null;
-      const queueLen = metric.queue_len ?? null;
-      await sql`
-        INSERT INTO metrics (time, repeater_id, location_id, rssi, snr, battery, power, uptime, link_quality, neighbors_count, packets_sent, packets_recv, queue_len)
-        VALUES (${metric.time}, ${metric.repeater_id}, ${batch.location_id}, ${rssi}, ${snr}, ${battery}, ${power}, ${uptime}, ${linkQuality}, ${neighborsCount}, ${packetsSent}, ${packetsRecv}, ${queueLen})
-      `;
-    }
-    for (const neighbor of batch.neighbors) {
-      const linkQuality = neighbor.link_quality ?? null;
-      const hops = neighbor.hops ?? null;
-      await sql`
-        INSERT INTO neighbors (time, repeater_id, neighbor_id, link_quality, hops)
-        VALUES (${neighbor.time}, ${neighbor.repeater_id}, ${neighbor.neighbor_id}, ${linkQuality}, ${hops})
-      `;
-    }
-    if (batch.heartbeat) {
-      await sql`
-        INSERT INTO device_heartbeats (time, device_id, status, version)
-        VALUES (${batch.heartbeat.time}, ${batch.device_id}, ${batch.heartbeat.status}, ${batch.heartbeat.version})
-      `;
+    const tx = await sql.reserve();
+    try {
+      await tx`BEGIN`;
+      for (const metric of batch.metrics) {
+        const rssi = metric.rssi ?? null;
+        const snr = metric.snr ?? null;
+        const battery = metric.battery ?? null;
+        const power = metric.power ?? null;
+        const uptime = metric.uptime ?? null;
+        const linkQuality = metric.link_quality ?? null;
+        const neighborsCount = metric.neighbors_count ?? null;
+        const packetsSent = metric.packets_sent ?? null;
+        const packetsRecv = metric.packets_recv ?? null;
+        const queueLen = metric.queue_len ?? null;
+        await tx`
+          INSERT INTO metrics (time, repeater_id, location_id, rssi, snr, battery, power, uptime, link_quality, neighbors_count, packets_sent, packets_recv, queue_len)
+          VALUES (${metric.time}, ${metric.repeater_id}, ${batch.location_id}, ${rssi}, ${snr}, ${battery}, ${power}, ${uptime}, ${linkQuality}, ${neighborsCount}, ${packetsSent}, ${packetsRecv}, ${queueLen})
+        `;
+      }
+      for (const neighbor of batch.neighbors) {
+        const linkQuality = neighbor.link_quality ?? null;
+        const hops = neighbor.hops ?? null;
+        const rssi = neighbor.rssi ?? null;
+        const snr = neighbor.snr ?? null;
+        await tx`
+          INSERT INTO neighbors (time, repeater_id, neighbor_id, link_quality, hops, rssi, snr)
+          VALUES (${neighbor.time}, ${neighbor.repeater_id}, ${neighbor.neighbor_id}, ${linkQuality}, ${hops}, ${rssi}, ${snr})
+        `;
+      }
+      if (batch.heartbeat) {
+        await tx`
+          INSERT INTO device_heartbeats (time, device_id, status, version)
+          VALUES (${batch.heartbeat.time}, ${batch.device_id}, ${batch.heartbeat.status}, ${batch.heartbeat.version})
+        `;
+      }
+      await tx`COMMIT`;
+    } catch (error) {
+      await tx`ROLLBACK`;
+      throw error;
+    } finally {
+      tx.release();
     }
 
     return reply.status(202).send({ accepted: true });
