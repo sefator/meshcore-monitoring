@@ -33,13 +33,14 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
    - Started by `docker-compose.yml`.
    - Auto-provisions a local TimescaleDB datasource plus checked-in dashboards from `grafana/`.
 
-`docker-compose.yml` starts the **central stack only** (`timescaledb`, `ingest`, `grafana`). The edge agent is not part of compose and is expected to run near the mesh hardware.
+`docker-compose.yml` is the **central-stack** entry point (`timescaledb`, `ingest`, `grafana`). `edge/docker-compose.yml` is the separate **edge-local** entry point for running only the edge client container against a local or remote ingest service.
 
 ## Repo layout
 
 - `SPEC.md` - intended architecture, payload contract, and open implementation tasks.
 - `SUMMARY.md` - short implementation snapshot.
-- `docker-compose.yml` - local central stack.
+- `docker-compose.yml` - local central stack only.
+- `edge/docker-compose.yml` - local edge-only compose entry point.
 - `scripts/schema.sql` - current database schema and Timescale policies.
 - `index.ts` - placeholder root file; not part of the runtime architecture.
 
@@ -73,6 +74,8 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
 - `bun run lint`
 - `bun run --cwd ingest typecheck`
 - `docker compose up --build timescaledb ingest grafana`
+- `docker compose -f edge/docker-compose.yml config`
+- `docker compose -f edge/docker-compose.yml up --build`
 - `curl http://localhost:8080/health`
 - `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
 - Open Grafana at `http://localhost:3000` (`admin` / `meshcore`) to use the provisioned Meshcore dashboards.
@@ -113,6 +116,49 @@ Practical local smoke path:
 5. `bun run mock-ingest -- --iterations 2 --interval-ms 1000 --location-id mock-location`
 6. `docker compose exec -T timescaledb psql -U meshcore -d meshcore -c "SELECT COUNT(*) FROM metrics;"`
 
+## Running edge with Docker Compose
+
+The repo now has two separate compose entry points:
+
+- `docker-compose.yml` for the central stack only
+- `edge/docker-compose.yml` for the edge client only
+
+Typical local workflow:
+
+1. Start the central stack from the repo root: `docker compose up --build timescaledb ingest grafana`
+2. Start the edge client from the repo root: `docker compose -f edge/docker-compose.yml up --build`
+3. Stop the edge client with: `docker compose -f edge/docker-compose.yml down`
+
+Important edge overrides in `edge/docker-compose.yml` are the same runtime env vars used by `edge/src/config.ts`:
+
+- `LOCATION_ID`
+- `INGEST_URL`
+- `WINDOW_HOURS`
+- `POLL_CONCURRENCY`
+- `REPEATERS_CONFIG_PATH`
+- `COMPANION_CONNECTION`, `COMPANION_TCP_HOST`, `COMPANION_TCP_PORT`
+- `COMPANION_SERIAL_PATH`
+- `COMPANION_TELEMETRY_TIMEOUT_MS`, `COMPANION_STATUS_TIMEOUT_MS`
+- `AUTH_TOKEN_TTL_SECONDS`
+
+Device identity and auth signing are **not** configured through env vars anymore. At runtime the edge agent asks the Meshcore device/companion for its public key/device identity and uses the device/companion to sign auth tokens.
+
+`edge/docker-compose.yml` defaults `INGEST_URL` and `COMPANION_TCP_HOST` to `host.docker.internal`, with `extra_hosts` wired to Docker's `host-gateway`, so the edge container can talk to services listening on the Docker host:
+
+- `INGEST_URL=http://host.docker.internal:8080/ingest`
+- `COMPANION_CONNECTION=tcp`
+- `COMPANION_TCP_HOST=host.docker.internal`
+- `COMPANION_TCP_PORT=5000`
+
+If ingest or the Meshcore companion runs somewhere else, override those values explicitly. Example:
+
+- `LOCATION_ID=field-a INGEST_URL=http://10.0.0.20:8080/ingest COMPANION_TCP_HOST=10.0.0.30 docker compose -f edge/docker-compose.yml up --build`
+
+Persistent edge files live in two places:
+
+- Repeater config on the host: `./edge/config/repeaters.json`, mounted read-only at `/app/config/repeaters.json` in the container.
+- Queue data in the named Docker volume `edge-queue-data`, mounted at `/app/.queue`.
+
 ## How to think about the current state
 
 - This repo is an **MVP / scaffold**, not a finished monitoring product.
@@ -144,4 +190,4 @@ Practical local smoke path:
 - **Neighbor data is intentionally partial**: current Meshcore library responses reliably expose neighbor prefix and SNR, while fields like per-neighbor RSSI, link quality, and hops remain optional.
 - `edge/src/main.ts` is an **infinite loop** and waits across the configured polling window. Do not run `bun run --cwd edge dev` as a casual smoke test unless you actually want hardware/network side effects.
 - `POLL_CONCURRENCY` exists in edge config, but the current `main.ts` processing is still sequential.
-- If you run the edge package from inside `edge/`, use the env file or set `REPEATERS_CONFIG_PATH=config/repeaters.json`; the code default is repo-root oriented and easy to trip over during local runs.
+- `REPEATERS_CONFIG_PATH` resolves relative to the current working directory. `bun run --cwd edge dev` works with the default `config/repeaters.json`; if you launch the process from the repo root without `--cwd edge`, point it at `edge/config/repeaters.json`.

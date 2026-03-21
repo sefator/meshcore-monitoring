@@ -4,13 +4,14 @@
 
 This is a Bun/TypeScript monorepo with two working services:
 
-- `edge/`: polls Meshcore repeaters through the companion app, builds a batch, signs it with an Ed25519 JWT-style token, and POSTs it to ingest.
+- `edge/`: polls Meshcore repeaters through the companion app, builds a batch, gets device identity/signatures from the companion at runtime, and POSTs it to ingest.
 - `ingest/`: accepts signed batches, validates them, auto-registers devices by public key, and writes data into TimescaleDB hypertables.
 
 Supporting pieces already exist:
 
 - `scripts/schema.sql`: database schema for locations, repeaters, devices, metrics, neighbors, and heartbeats.
-- `docker-compose.yml`: local stack for TimescaleDB + ingest + Grafana, with Grafana provisioning wired to checked-in datasources and dashboards under `grafana/`.
+- `docker-compose.yml`: local central stack for TimescaleDB + ingest + Grafana, with Grafana provisioning wired to checked-in datasources and dashboards under `grafana/`.
+- `edge/docker-compose.yml`: local edge-only compose entry point.
 - `scripts/mock-ingest.ts`: synthetic ingest generator that can also print matching SQL for the required mock location/repeater rows.
 - Root `package.json`: workspace wiring plus `lint` and `format`.
 
@@ -37,7 +38,7 @@ What happens:
 - `scheduler.ts` spreads repeater reads across the window using deterministic jitter from `repeater_id + day`.
 - `companion.ts` opens a TCP or serial Meshcore companion connection, logs in to each repeater, reads status, and paginates neighbors.
 - `batcher.ts` builds one batch per window with `metrics`, `neighbors`, and a heartbeat.
-- `sender.ts` signs a token, sends the batch to ingest, and falls back to a disk queue (`.queue/`) when send fails.
+- `sender.ts` fetches device identity, signs via the companion/device, sends the batch to ingest, and falls back to a disk queue (`.queue/`) when send fails.
 - `flushQueue()` retries queued batches in filename order and stops on the first failure.
 
 ### 2. Authentication and ingest
@@ -126,7 +127,8 @@ That limitation is reflected in both `SPEC.md` and the comments/types in `edge/s
 ### Infra / schema
 
 - `scripts/schema.sql`: DB truth for columns and hypertables.
-- `docker-compose.yml`: local stack shape; note that edge is not part of compose.
+- `docker-compose.yml`: local central stack shape.
+- `edge/docker-compose.yml`: local edge-only compose entry point.
 - `package.json`, `edge/package.json`, `ingest/package.json`: available scripts and package-level expectations.
 
 ## Known limitations and rough edges
@@ -174,7 +176,7 @@ If you are changing...
 - **auth token format or verification**: start with `edge/src/signing.ts` and `ingest/src/tokens.ts`.
 - **offline delivery / retry behavior**: start with `edge/src/sender.ts` and `edge/src/queue.ts`.
 - **device registration policy**: start with `ingest/src/device-store.ts` and `ingest/src/routes.ts`.
-- **local deployment**: start with `docker-compose.yml` and `scripts/schema.sql`.
+- **local deployment**: start with `docker-compose.yml` and `scripts/schema.sql` for central services, and use `edge/docker-compose.yml` when you want the compose-managed edge client too.
 
 High-value near-term work, based on current code:
 

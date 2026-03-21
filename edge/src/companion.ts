@@ -1,52 +1,21 @@
-import { TCPConnection, NodeJSSerialConnection } from "@liamcottle/meshcore.js";
+import {
+  TCPConnection,
+  NodeJSSerialConnection,
+} from "@liamcottle/meshcore.js";
+import type {
+  CompanionContact,
+  CompanionSelfInfo,
+  CompanionStats,
+  MeshcoreConnection,
+  MeshcoreNeighbour,
+} from "@liamcottle/meshcore.js";
 import type { MetricSample, NeighborSample, Repeater } from "./types.js";
 import { config } from "./config.js";
 import { log } from "./log.js";
 
-type CompanionConnection = {
-  connect(): Promise<void>;
-  sendCommandAppStart(): Promise<void>;
-  getContacts(): Promise<unknown>;
-  getStatus(publicKey: Uint8Array, timeoutMs: number): Promise<CompanionStats>;
-  login(
-    publicKey: Uint8Array,
-    password: string,
-    timeoutMs?: number,
-  ): Promise<unknown>;
-  getNeighbours(
-    publicKey: Uint8Array,
-    count?: number,
-    offset?: number,
-    orderBy?: number,
-    pubKeyPrefixLength?: number,
-  ): Promise<MeshcoreNeighboursResponse>;
-  findContactByPublicKeyPrefix(
-    prefix: Uint8Array | Buffer,
-  ): Promise<CompanionContact | null>;
-};
-
-type CompanionContact = {
-  publicKey: Uint8Array;
-  advName?: string;
-};
-
-type CompanionStats = {
-  batt_milli_volts: number;
-  curr_tx_queue_len: number;
-  noise_floor: number;
-  last_rssi: number;
-  n_packets_recv: number;
-  n_packets_sent: number;
-  total_air_time_secs: number;
-  total_up_time_secs: number;
-  n_sent_flood: number;
-  n_sent_direct: number;
-  n_recv_flood: number;
-  n_recv_direct: number;
-  err_events: number;
-  last_snr: number;
-  n_direct_dups: number;
-  n_flood_dups: number;
+export type DeviceIdentity = {
+  publicKeyHex: string;
+  deviceId: string;
 };
 
 // @liamcottle/meshcore.js 1.11.0 parses each neighbor from getNeighbours() as:
@@ -54,17 +23,6 @@ type CompanionStats = {
 // - heardSecondsAgo: uint32
 // - snr: int8 / 4
 // No per-neighbor rssi, link_quality, or hops are exposed by this API.
-type MeshcoreNeighbour = {
-  publicKeyPrefix: Uint8Array;
-  heardSecondsAgo: number;
-  snr: number;
-};
-
-type MeshcoreNeighboursResponse = {
-  totalNeighboursCount: number;
-  neighbours: MeshcoreNeighbour[];
-};
-
 type NeighborFetchResult = {
   neighbors: NeighborSample[];
   neighborsCount?: number;
@@ -75,6 +33,9 @@ function derivePublicKeyPrefix(hexKey: string) {
 }
 
 let connectionPromise: Promise<CompanionConnection> | null = null;
+let deviceIdentityPromise: Promise<DeviceIdentity> | null = null;
+
+type CompanionConnection = MeshcoreConnection;
 
 async function withConnection<T>(
   fn: (conn: CompanionConnection) => Promise<T>,
@@ -85,12 +46,25 @@ async function withConnection<T>(
   } catch (err) {
     log.error("companion call failed, resetting connection", err);
     connectionPromise = null;
+    deviceIdentityPromise = null;
     throw err;
   }
 }
 
 function hexToBytes(hex: string) {
   return Uint8Array.from(Buffer.from(hex, "hex"));
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Buffer.from(bytes).toString("hex").toUpperCase();
+}
+
+function mapSelfInfoToDeviceIdentity(selfInfo: CompanionSelfInfo): DeviceIdentity {
+  const publicKeyHex = bytesToHex(selfInfo.publicKey);
+  return {
+    publicKeyHex,
+    deviceId: publicKeyHex,
+  };
 }
 
 async function resolveContact(
@@ -110,14 +84,12 @@ async function resolveContact(
 
 function createConnection(): CompanionConnection {
   if (config.companion.connection === "serial") {
-    return new NodeJSSerialConnection(
-      config.companion.serialPath,
-    ) as unknown as CompanionConnection;
+    return new NodeJSSerialConnection(config.companion.serialPath);
   }
   return new TCPConnection(
     config.companion.host,
     config.companion.port,
-  ) as unknown as CompanionConnection;
+  );
 }
 
 async function ensureConnection(): Promise<CompanionConnection> {
@@ -141,6 +113,26 @@ async function ensureConnection(): Promise<CompanionConnection> {
     return conn;
   })();
   return connectionPromise;
+}
+
+export async function getDeviceIdentity(): Promise<DeviceIdentity> {
+  if (deviceIdentityPromise) {
+    return deviceIdentityPromise;
+  }
+
+  deviceIdentityPromise = withConnection(async (conn) => {
+    const selfInfo = await conn.getSelfInfo(config.companion.statusTimeoutMs);
+    return mapSelfInfoToDeviceIdentity(selfInfo);
+  }).catch((err) => {
+    deviceIdentityPromise = null;
+    throw err;
+  });
+
+  return deviceIdentityPromise;
+}
+
+export async function signWithDevice(data: Uint8Array) {
+  return withConnection((conn) => conn.sign(data));
 }
 
 function mapStatusToMetric(

@@ -1,0 +1,26 @@
+services:
+  edge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      LOCATION_ID: ${LOCATION_ID:-demo-location}
+      WINDOW_HOURS: ${WINDOW_HOURS:-8}
+      INGEST_URL: ${INGEST_URL:-http://host.docker.internal:8080/ingest}
+      POLL_CONCURRENCY: ${POLL_CONCURRENCY:-1}
+      REPEATERS_CONFIG_PATH: ${REPEATERS_CONFIG_PATH:-config/repeaters.json}
+      COMPANION_CONNECTION: ${COMPANION_CONNECTION:-tcp}
+      COMPANION_TCP_HOST: ${COMPANION_TCP_HOST:-host.docker.internal}
+      COMPANION_TCP_PORT: ${COMPANION_TCP_PORT:-5000}
+      COMPANION_SERIAL_PATH: ${COMPANION_SERIAL_PATH:-/dev/ttyACM0}
+      COMPANION_TELEMETRY_TIMEOUT_MS: ${COMPANION_TELEMETRY_TIMEOUT_MS:-15000}
+      COMPANION_STATUS_TIMEOUT_MS: ${COMPANION_STATUS_TIMEOUT_MS:-30000}
+      AUTH_TOKEN_TTL_SECONDS: ${AUTH_TOKEN_TTL_SECONDS:-86400}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - edge-queue-data:/app/.queue
+
+volumes:
+  edge-queue-data:

@@ -24,7 +24,7 @@ async function runWindow() {
     neighbors.forEach((n) => batcher.addNeighbors(n));
   }
 
-  const batch = batcher.build();
+  const batch = await batcher.build();
   await sendBatch(batch);
   await flushQueue();
 }

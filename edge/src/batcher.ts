@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import type { BatchPayload, MetricSample, NeighborSample } from "./types.js";
+import { getDeviceIdentity } from "./companion.js";
 import { config } from "./config.js";
 
 export class BatchBuilder {
@@ -21,9 +22,10 @@ export class BatchBuilder {
     this.neighbors.push(sample);
   }
 
-  build(): BatchPayload {
+  async build(): Promise<BatchPayload> {
+    const { deviceId } = await getDeviceIdentity();
     return {
-      device_id: config.deviceId,
+      device_id: deviceId,
       location_id: config.locationId,
       batch_id: nanoid(),
       sent_at: new Date().toISOString(),
