@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: Meshcore dashboards
+    orgId: 1
+    folder: Meshcore
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards/meshcore
+      foldersFromFilesStructure: false

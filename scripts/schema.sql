@@ -39,7 +39,11 @@ CREATE TABLE IF NOT EXISTS metrics (
   queue_len integer
 );
 SELECT create_hypertable('metrics', 'time', if_not_exists => true);
-SELECT add_compression_policy('metrics', INTERVAL '30 days');
+ALTER TABLE metrics SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'location_id,repeater_id'
+);
+SELECT add_compression_policy('metrics', INTERVAL '30 days', if_not_exists => true);
 
 CREATE TABLE IF NOT EXISTS neighbors (
   time timestamptz NOT NULL,
@@ -55,7 +59,11 @@ ALTER TABLE IF EXISTS neighbors
 ALTER TABLE IF EXISTS neighbors
   ADD COLUMN IF NOT EXISTS snr double precision;
 SELECT create_hypertable('neighbors', 'time', if_not_exists => true);
-SELECT add_compression_policy('neighbors', INTERVAL '30 days');
+ALTER TABLE neighbors SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'repeater_id'
+);
+SELECT add_compression_policy('neighbors', INTERVAL '30 days', if_not_exists => true);
 
 CREATE TABLE IF NOT EXISTS device_heartbeats (
   time timestamptz NOT NULL,
@@ -64,4 +72,8 @@ CREATE TABLE IF NOT EXISTS device_heartbeats (
   version text
 );
 SELECT create_hypertable('device_heartbeats', 'time', if_not_exists => true);
-SELECT add_compression_policy('device_heartbeats', INTERVAL '30 days');
+ALTER TABLE device_heartbeats SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'device_id'
+);
+SELECT add_compression_policy('device_heartbeats', INTERVAL '30 days', if_not_exists => true);

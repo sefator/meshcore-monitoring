@@ -1,0 +1,356 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(time))) / 60 AS value\nFROM device_heartbeats;",
+          "refId": "A"
+        }
+      ],
+      "title": "Minutes since last heartbeat",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT repeater_id) AS value\nFROM metrics;",
+          "refId": "A"
+        }
+      ],
+      "title": "Repeaters with metrics",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.rssi) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.rssi IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Average RSSI by repeater",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.snr) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.snr IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Average SNR by repeater",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.neighbors_count) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.neighbors_count IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Average neighbors count by repeater",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT ON (device_id)\n  device_id,\n  time AS last_heartbeat,\n  status,\n  version\nFROM device_heartbeats\nWHERE $__timeFilter(time)\nORDER BY device_id, time DESC;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest device heartbeats",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  COALESCE(r.label, latest.repeater_id) AS repeater,\n  latest.time AS last_sample,\n  latest.rssi,\n  latest.snr,\n  latest.battery,\n  latest.link_quality,\n  latest.neighbors_count,\n  latest.queue_len\nFROM (\n  SELECT DISTINCT ON (repeater_id)\n    repeater_id,\n    time,\n    rssi,\n    snr,\n    battery,\n    link_quality,\n    neighbors_count,\n    queue_len\n  FROM metrics\n  WHERE $__timeFilter(time)\n  ORDER BY repeater_id, time DESC\n) latest\nLEFT JOIN repeaters r ON r.repeater_id = latest.repeater_id\nORDER BY repeater;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest repeater samples",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["meshcore"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Meshcore Overview",
+  "uid": "meshcore-overview",
+  "version": 1,
+  "weekStart": ""
+}

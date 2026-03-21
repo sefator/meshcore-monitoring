@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "lint": "bun run --cwd edge lint && bun run --cwd ingest lint",
-    "format": "bun x prettier --write ."
+    "format": "bun x prettier --write .",
+    "mock-ingest": "bun run scripts/mock-ingest.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.11",

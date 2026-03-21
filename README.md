@@ -9,6 +9,7 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
 ### High-level architecture
 
 1. **Edge (`edge/`)**
+
    - Connects to the Meshcore companion over TCP or serial.
    - Loads repeaters from JSON config.
    - Spreads repeater polls across an 8-hour window with deterministic jitter.
@@ -16,6 +17,7 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
    - Stores failed uploads in a local disk queue.
 
 2. **Ingest (`ingest/`)**
+
    - Exposes `/health` and `/ingest`.
    - Verifies Ed25519 JWT-like auth tokens from `X-Auth-Token`.
    - Validates request payloads with Zod.
@@ -23,12 +25,13 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
    - Inserts metrics, neighbors, and heartbeats into PostgreSQL/TimescaleDB.
 
 3. **Database**
+
    - Schema lives in `scripts/schema.sql`.
    - Uses Timescale hypertables for `metrics`, `neighbors`, and `device_heartbeats`.
 
 4. **Grafana**
    - Started by `docker-compose.yml`.
-   - Reads from TimescaleDB for dashboards.
+   - Auto-provisions a local TimescaleDB datasource plus checked-in dashboards from `grafana/`.
 
 `docker-compose.yml` starts the **central stack only** (`timescaledb`, `ingest`, `grafana`). The edge agent is not part of compose and is expected to run near the mesh hardware.
 
@@ -71,18 +74,44 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
 - `bun run --cwd ingest typecheck`
 - `docker compose up --build timescaledb ingest grafana`
 - `curl http://localhost:8080/health`
+- `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+- Open Grafana at `http://localhost:3000` (`admin` / `meshcore`) to use the provisioned Meshcore dashboards.
 
 ### Service commands
 
 - `bun run --cwd ingest dev`
 - `bun run --cwd ingest start`
 - `bun run --cwd edge dev`
+- `bun run mock-ingest -- --iterations 12 --interval-ms 5000`
+
+### Mock ingest generator
+
+Use the synthetic generator to exercise `/ingest` without Meshcore hardware:
+
+- `bun run mock-ingest -- --iterations 6 --interval-ms 2000 --repeaters 5`
+- `bun run mock-ingest -- --duration-seconds 60 --seed lab-a --device-id mock-lab-a --location-id lab-a`
+- `bun run mock-ingest -- --dry-run --iterations 1`
+- `bun run mock-ingest -- --print-reference-sql --seed lab-a --location-id lab-a --repeaters 5`
+
+The script posts batches directly to the ingest endpoint, signs each request with the same Ed25519 JWT-like token format as the edge service, and derives a deterministic demo keypair from `--seed` unless `--private-key-hex` and `--public-key-hex` are provided explicitly. Defaults target `http://localhost:8080/ingest`.
+
+On a fresh database, seed the referenced location and repeaters before posting batches. `--print-reference-sql` prints deterministic `INSERT` statements that match the current `--seed`, `--location-id`, and `--repeaters` values so you can pipe them straight into `psql`.
 
 ### Schema setup
 
 Compose does **not** apply `scripts/schema.sql` automatically. After TimescaleDB is up, apply it yourself, for example:
 
 - `cat scripts/schema.sql | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+- `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+
+Practical local smoke path:
+
+1. `docker compose up --build timescaledb ingest grafana`
+2. `cat scripts/schema.sql | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+3. `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+4. `curl http://localhost:8080/health`
+5. `bun run mock-ingest -- --iterations 2 --interval-ms 1000 --location-id mock-location`
+6. `docker compose exec -T timescaledb psql -U meshcore -d meshcore -c "SELECT COUNT(*) FROM metrics;"`
 
 ## How to think about the current state
 
@@ -98,7 +127,7 @@ Compose does **not** apply `scripts/schema.sql` automatically. After TimescaleDB
   - `POST /ingest`
 - `SPEC.md` mentions `POST /devices/register` and optional `GET /metrics`, but those routes are **not implemented** right now.
 - There is **no automated test suite** in the repo today. Practical validation is currently linting plus ingest typechecking.
-- Grafana is provisioned as a container, but there are no checked-in dashboards yet.
+- Grafana starts with a provisioned TimescaleDB datasource and two checked-in dashboards: `Meshcore Overview` and `Meshcore Neighbors`.
 
 ## Notes for contributors and coding agents
 

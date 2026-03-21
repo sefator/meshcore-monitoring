@@ -10,7 +10,8 @@ This is a Bun/TypeScript monorepo with two working services:
 Supporting pieces already exist:
 
 - `scripts/schema.sql`: database schema for locations, repeaters, devices, metrics, neighbors, and heartbeats.
-- `docker-compose.yml`: local stack for TimescaleDB + ingest + Grafana.
+- `docker-compose.yml`: local stack for TimescaleDB + ingest + Grafana, with Grafana provisioning wired to checked-in datasources and dashboards under `grafana/`.
+- `scripts/mock-ingest.ts`: synthetic ingest generator that can also print matching SQL for the required mock location/repeater rows.
 - Root `package.json`: workspace wiring plus `lint` and `format`.
 
 This is an MVP with the main flow implemented. It is more complete than the old summary suggested, but there are still real contract and resilience gaps.
@@ -66,6 +67,7 @@ What happens:
 - Compression policies after 30 days
 
 There is no migration system in the repo; schema application is still manual.
+Mock ingest on a fresh DB also needs reference rows in `locations` and `repeaters`; `scripts/mock-ingest.ts --print-reference-sql` prints matching seed SQL.
 
 ## What is actually being collected
 
@@ -160,6 +162,7 @@ From `SPEC.md`, these are still missing or only partial:
 - Root scripts provide `lint` and `format`; ingest also has `typecheck`; edge does not expose a dedicated typecheck script.
 - Practical validation hooks today are `bun run lint` and `bun run --cwd ingest typecheck`.
 - Schema setup is manual; there is no migration runner.
+- Local stack smoke tests should seed the mock location/repeaters before POSTing batches.
 
 ## Good starting points for future work
 

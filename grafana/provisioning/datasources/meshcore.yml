@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: Meshcore TimescaleDB
+    uid: meshcore-timescaledb
+    type: postgres
+    access: proxy
+    url: timescaledb:5432
+    user: meshcore
+    secureJsonData:
+      password: meshcore
+    jsonData:
+      database: meshcore
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: true
+    editable: false
+    isDefault: true
