@@ -3,9 +3,18 @@ import { getDeviceIdentity } from "./companion.js";
 import { config } from "./config.js";
 import { log } from "./log.js";
 import type { BatchPayload } from "./types.js";
-import { createAuthToken } from "./signing.js";
+import { createAuthToken, runSigningSelfCheck } from "./signing.js";
 
 const MAX_RESPONSE_TEXT_LENGTH = 300;
+const loggedSigningDiagnostics = new Set<string>();
+
+type ResponseLogContext = {
+  status: number;
+  statusText?: string;
+  responseContentType?: string;
+  responseText?: string;
+  responseReadError?: string;
+};
 
 function normalizeBatchDeviceId(batch: BatchPayload, deviceId: string): BatchPayload {
   if (batch.device_id === deviceId) {
@@ -40,8 +49,8 @@ function truncateText(value: string, maxLength = MAX_RESPONSE_TEXT_LENGTH) {
   return `${value.slice(0, maxLength - 1)}…`;
 }
 
-async function getResponseLogContext(res: Response) {
-  const responseContext: Record<string, unknown> = {
+async function getResponseLogContext(res: Response): Promise<ResponseLogContext> {
+  const responseContext: ResponseLogContext = {
     status: res.status,
     statusText: res.statusText || undefined,
     responseContentType: res.headers.get("content-type") ?? undefined
@@ -57,6 +66,42 @@ async function getResponseLogContext(res: Response) {
   }
 
   return responseContext;
+}
+
+function shouldRunSigningDiagnostic(responseContext: ResponseLogContext) {
+  return typeof responseContext.responseText === "string" &&
+    responseContext.responseText.toLowerCase().includes("signature mismatch");
+}
+
+async function maybeLogSigningDiagnostic(
+  identity: { deviceId: string; publicKeyHex: string },
+  logContext: Record<string, unknown>,
+  responseContext: ResponseLogContext,
+) {
+  if (!shouldRunSigningDiagnostic(responseContext)) {
+    return;
+  }
+
+  const dedupeKey = identity.publicKeyHex.toUpperCase();
+  if (loggedSigningDiagnostics.has(dedupeKey)) {
+    return;
+  }
+
+  loggedSigningDiagnostics.add(dedupeKey);
+  try {
+    const signingSelfCheck = await runSigningSelfCheck(identity);
+    log.warn("ingest signature mismatch diagnostic", {
+      ...logContext,
+      responseStatus: responseContext.status,
+      signingSelfCheck
+    });
+  } catch (err) {
+    log.warn("ingest signature mismatch diagnostic failed", {
+      ...logContext,
+      responseStatus: responseContext.status,
+      error: formatError(err)
+    });
+  }
 }
 
 export async function sendBatch(batch: BatchPayload) {
@@ -83,9 +128,11 @@ export async function sendBatch(batch: BatchPayload) {
   }
 
   if (!res.ok) {
+    const responseContext = await getResponseLogContext(res);
+    await maybeLogSigningDiagnostic(identity, logContext, responseContext);
     log.warn("ingest write failed", {
       ...logContext,
-      ...(await getResponseLogContext(res))
+      ...responseContext
     });
     await enqueueBatch(body);
     throw new Error(`ingest status ${res.status}`);
@@ -147,6 +194,8 @@ export async function flushQueue() {
       continue;
     }
 
-    log.warn("queued batch replay failed", { ...logContext, ...(await getResponseLogContext(res)) });
+    const responseContext = await getResponseLogContext(res);
+    await maybeLogSigningDiagnostic(identity, logContext, responseContext);
+    log.warn("queued batch replay failed", { ...logContext, ...responseContext });
   }
 }

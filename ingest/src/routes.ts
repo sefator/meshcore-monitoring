@@ -109,7 +109,8 @@ function getSafeTokenContext(token: string) {
       claims: {
         deviceId: typeof rawPayload.deviceId === "string" ? rawPayload.deviceId : undefined,
         locationId: typeof rawPayload.locationId === "string" ? rawPayload.locationId : undefined,
-        publicKey: typeof rawPayload.publicKey === "string" ? redactValue(rawPayload.publicKey) : undefined,
+        publicKeyFingerprint:
+          typeof rawPayload.publicKey === "string" ? redactValue(rawPayload.publicKey) : undefined,
         hasIat: typeof rawPayload.iat === "number",
         hasExp: typeof rawPayload.exp === "number"
       }

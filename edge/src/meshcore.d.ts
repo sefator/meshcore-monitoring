@@ -40,6 +40,10 @@ declare module "@liamcottle/meshcore.js" {
     [key: string]: unknown;
   };
 
+  export type CompanionPrivateKeyExport = {
+    privateKey: Uint8Array;
+  };
+
   export interface MeshcoreConnection {
     connect(): Promise<void>;
     sendCommandAppStart(): Promise<void>;
@@ -64,6 +68,7 @@ declare module "@liamcottle/meshcore.js" {
       prefix: Uint8Array | Buffer,
     ): Promise<CompanionContact | null>;
     getSelfInfo(timeoutMs?: number | null): Promise<CompanionSelfInfo>;
+    exportPrivateKey(): Promise<CompanionPrivateKeyExport>;
     sign(data: Uint8Array): Promise<Uint8Array>;
   }
 
@@ -92,6 +97,7 @@ declare module "@liamcottle/meshcore.js" {
       prefix: Uint8Array | Buffer,
     ): Promise<CompanionContact | null>;
     getSelfInfo(timeoutMs?: number | null): Promise<CompanionSelfInfo>;
+    exportPrivateKey(): Promise<CompanionPrivateKeyExport>;
     sign(data: Uint8Array): Promise<Uint8Array>;
   }
 
@@ -120,6 +126,7 @@ declare module "@liamcottle/meshcore.js" {
       prefix: Uint8Array | Buffer,
     ): Promise<CompanionContact | null>;
     getSelfInfo(timeoutMs?: number | null): Promise<CompanionSelfInfo>;
+    exportPrivateKey(): Promise<CompanionPrivateKeyExport>;
     sign(data: Uint8Array): Promise<Uint8Array>;
   }
 }

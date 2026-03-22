@@ -135,6 +135,13 @@ export async function signWithDevice(data: Uint8Array) {
   return withConnection((conn) => conn.sign(data));
 }
 
+export async function exportDevicePrivateKey() {
+  return withConnection(async (conn) => {
+    const exported = await conn.exportPrivateKey();
+    return exported.privateKey;
+  });
+}
+
 function mapStatusToMetric(
   repeater: Repeater,
   stats: CompanionStats,
