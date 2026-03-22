@@ -64,16 +64,35 @@ in TimescaleDB for visualization in Grafana.
   "repeater_id": "string",
   "rssi": -85,
   "snr": 12,
+  "snr_raw": 48,
   "battery": 4.05,
+  "battery_milli_volts": 4050,
   "power": "mains|battery|solar|unknown",
   "uptime": 123456,
+  "air_time": 7890,
+  "noise_floor": -106,
   "link_quality": 0.92,
-  "neighbors_count": 4
+  "neighbors_count": 4,
+  "packets_sent": 1200,
+  "packets_sent_direct": 900,
+  "packets_sent_flood": 300,
+  "packets_recv": 1180,
+  "packets_recv_direct": 880,
+  "packets_recv_flood": 300,
+  "queue_len": 2,
+  "error_events": 1,
+  "direct_duplicates": 6,
+  "flood_duplicates": 3
 }
 ```
 
 `battery` is a floating-point voltage in volts, derived from Meshcore `batt_milli_volts`
-when available.
+when available. `snr` is a dB value derived from raw Meshcore `snr_raw` quarter-dB units.
+
+All currently exposed repeater status fields are validated and stored as explicit columns in the
+`metrics` hypertable; ingest does not persist repeater status as a JSON blob. The main payload-to-DB
+name differences are `air_time` → `total_air_time_secs`, direct/flood packet splits → `n_*`, and
+duplicate counters → `n_*_dups`.
 
 `neighbors_count` should come from meshcore `connection.getNeighbours(...).totalNeighboursCount`.
 If all neighbor pages are collected for that sample, it should also equal the number of emitted
@@ -141,8 +160,10 @@ returned by that API and therefore remain optional until another source provides
 - repeaters(repeater_id, location_id, label, identifiers, metadata)
 
 ### Hypertables
-- metrics(time, repeater_id, location_id, rssi, snr, battery, power, uptime,
-  link_quality, neighbors_count)
+- metrics(time, repeater_id, location_id, rssi, snr, snr_raw, battery, battery_milli_volts,
+  power, uptime, noise_floor, total_air_time_secs, link_quality, neighbors_count,
+  packets_sent, packets_recv, queue_len, n_sent_flood, n_sent_direct, n_recv_flood,
+  n_recv_direct, err_events, n_direct_dups, n_flood_dups)
 - neighbors(time, repeater_id, neighbor_id, link_quality, hops, rssi, snr)
 - device_heartbeats(time, device_id, status, version)
 

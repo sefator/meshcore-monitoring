@@ -143,20 +143,31 @@ function mapStatusToMetric(
   return {
     time: now.toISOString(),
     repeater_id: repeater.repeaterId,
+    battery_milli_volts: stats.batt_milli_volts,
     battery: stats.batt_milli_volts
       ? Math.round(stats.batt_milli_volts / 10) / 100
       : undefined,
     rssi: stats.last_rssi,
     snr: stats.last_snr ? stats.last_snr / 4 : undefined,
+    snr_raw: stats.last_snr,
     uptime: stats.total_up_time_secs,
+    air_time: stats.total_air_time_secs,
     link_quality:
       stats.n_packets_sent && stats.n_packets_sent > 0
         ? stats.n_recv_direct / stats.n_packets_sent
         : undefined,
     neighbors_count: undefined,
+    noise_floor: stats.noise_floor,
     packets_sent: stats.n_packets_sent,
+    packets_sent_direct: stats.n_sent_direct,
+    packets_sent_flood: stats.n_sent_flood,
     packets_recv: stats.n_packets_recv,
+    packets_recv_direct: stats.n_recv_direct,
+    packets_recv_flood: stats.n_recv_flood,
     queue_len: stats.curr_tx_queue_len,
+    error_events: stats.err_events,
+    direct_duplicates: stats.n_direct_dups,
+    flood_duplicates: stats.n_flood_dups,
   };
 }
 

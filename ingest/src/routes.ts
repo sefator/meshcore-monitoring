@@ -152,17 +152,78 @@ export async function registerRoutes(app: FastifyInstance) {
           for (const metric of batch.metrics) {
             const rssi = metric.rssi ?? null;
             const snr = metric.snr ?? null;
+            const snrRaw = metric.snr_raw ?? null;
             const battery = metric.battery ?? null;
+            const batteryMilliVolts = metric.battery_milli_volts ?? null;
             const power = metric.power ?? null;
             const uptime = metric.uptime ?? null;
+            const noiseFloor = metric.noise_floor ?? null;
+            const totalAirTimeSecs = metric.air_time ?? null;
             const linkQuality = metric.link_quality ?? null;
             const neighborsCount = metric.neighbors_count ?? null;
             const packetsSent = metric.packets_sent ?? null;
+            const packetsSentFlood = metric.packets_sent_flood ?? null;
+            const packetsSentDirect = metric.packets_sent_direct ?? null;
             const packetsRecv = metric.packets_recv ?? null;
+            const packetsRecvFlood = metric.packets_recv_flood ?? null;
+            const packetsRecvDirect = metric.packets_recv_direct ?? null;
             const queueLen = metric.queue_len ?? null;
+            const errEvents = metric.error_events ?? null;
+            const directDuplicates = metric.direct_duplicates ?? null;
+            const floodDuplicates = metric.flood_duplicates ?? null;
             await tx`
-              INSERT INTO metrics (time, repeater_id, location_id, rssi, snr, battery, power, uptime, link_quality, neighbors_count, packets_sent, packets_recv, queue_len)
-              VALUES (${metric.time}, ${metric.repeater_id}, ${locationId}, ${rssi}, ${snr}, ${battery}, ${power}, ${uptime}, ${linkQuality}, ${neighborsCount}, ${packetsSent}, ${packetsRecv}, ${queueLen})
+              INSERT INTO metrics (
+                time,
+                repeater_id,
+                location_id,
+                rssi,
+                snr,
+                snr_raw,
+                battery,
+                battery_milli_volts,
+                power,
+                uptime,
+                noise_floor,
+                total_air_time_secs,
+                link_quality,
+                neighbors_count,
+                packets_sent,
+                packets_recv,
+                queue_len,
+                n_sent_flood,
+                n_sent_direct,
+                n_recv_flood,
+                n_recv_direct,
+                err_events,
+                n_direct_dups,
+                n_flood_dups
+              )
+              VALUES (
+                ${metric.time},
+                ${metric.repeater_id},
+                ${locationId},
+                ${rssi},
+                ${snr},
+                ${snrRaw},
+                ${battery},
+                ${batteryMilliVolts},
+                ${power},
+                ${uptime},
+                ${noiseFloor},
+                ${totalAirTimeSecs},
+                ${linkQuality},
+                ${neighborsCount},
+                ${packetsSent},
+                ${packetsRecv},
+                ${queueLen},
+                ${packetsSentFlood},
+                ${packetsSentDirect},
+                ${packetsRecvFlood},
+                ${packetsRecvDirect},
+                ${errEvents},
+                ${directDuplicates},
+                ${floodDuplicates}
+              )
             `;
           }
           for (const neighbor of batch.neighbors) {

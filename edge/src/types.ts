@@ -11,16 +11,28 @@ export type MetricSample = {
   repeater_id: string;
   rssi?: number;
   snr?: number;
+  // Raw Meshcore last_snr value in quarter-dB units.
+  snr_raw?: number;
   // Battery voltage in volts, derived from batt_milli_volts when available.
   battery?: number;
+  battery_milli_volts?: number;
   power?: "mains" | "battery" | "solar" | "unknown";
   uptime?: number;
+  air_time?: number;
   link_quality?: number;
   // From meshcore getNeighbours(). Should match neighbors.length when all pages are collected.
   neighbors_count?: number;
+  noise_floor?: number;
   packets_sent?: number;
+  packets_sent_direct?: number;
+  packets_sent_flood?: number;
   packets_recv?: number;
+  packets_recv_direct?: number;
+  packets_recv_flood?: number;
   queue_len?: number;
+  error_events?: number;
+  direct_duplicates?: number;
+  flood_duplicates?: number;
 };
 
 export type NeighborSample = {

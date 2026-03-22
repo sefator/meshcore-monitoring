@@ -67,6 +67,9 @@ What happens:
 - Hypertables: `metrics`, `neighbors`, `device_heartbeats`
 - Compression policies after 30 days
 
+The `metrics` hypertable stores the current repeater status surface as explicit columns; ingest
+does not keep a JSON status blob for repeater telemetry.
+
 There is no migration system in the repo; schema application is still manual.
 Mock ingest on a fresh DB also needs reference rows in `locations` and `repeaters`; `scripts/mock-ingest.ts --print-reference-sql` prints matching seed SQL.
 
@@ -74,17 +77,22 @@ Mock ingest on a fresh DB also needs reference rows in `locations` and `repeater
 
 ### Metrics from `edge/src/companion.ts`
 
-Implemented today:
+Implemented today and persisted as explicit `metrics` columns:
 
 - `rssi`
-- `snr`
-- `battery` in volts (derived from `batt_milli_volts`)
+- `snr` plus raw `snr_raw`
+- `battery` in volts plus raw `battery_milli_volts`
 - `uptime`
+- `air_time`
+- `noise_floor`
 - `link_quality` (derived from packet counters)
 - `neighbors_count`
-- `packets_sent`
-- `packets_recv`
+- `packets_sent`, `packets_recv`
+- `packets_sent_direct`, `packets_sent_flood`
+- `packets_recv_direct`, `packets_recv_flood`
 - `queue_len`
+- `error_events`
+- `direct_duplicates`, `flood_duplicates`
 
 ### Neighbor data
 
@@ -188,6 +196,6 @@ High-value near-term work, based on current code:
 
 ## Practical status
 
-- The core edge → ingest → TimescaleDB path exists and is readable, with battery stored as a voltage derived from `batt_milli_volts`.
+- The core edge → ingest → TimescaleDB path exists and persists the current repeater status surface in explicit `metrics` columns, including raw `battery_milli_volts` / `snr_raw`, air-time/noise data, queue length, packet splits, error events, and duplicate counts.
 - The repo is suitable for targeted engineering work, especially around edge polling, ingest validation, and schema evolution.
 - Treat `SPEC.md` as design intent, but use the code paths above as the source of truth for current behavior.

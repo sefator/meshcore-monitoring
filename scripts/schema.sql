@@ -29,15 +29,48 @@ CREATE TABLE IF NOT EXISTS metrics (
   location_id text REFERENCES locations(location_id),
   rssi double precision,
   snr double precision,
+  snr_raw integer,
   battery double precision,
+  battery_milli_volts integer,
   power text,
   uptime bigint,
+  noise_floor double precision,
+  total_air_time_secs bigint,
   link_quality double precision,
   neighbors_count integer,
   packets_sent bigint,
   packets_recv bigint,
-  queue_len integer
+  queue_len integer,
+  n_sent_flood bigint,
+  n_sent_direct bigint,
+  n_recv_flood bigint,
+  n_recv_direct bigint,
+  err_events bigint,
+  n_direct_dups bigint,
+  n_flood_dups bigint
 );
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS snr_raw integer;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS battery_milli_volts integer;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS noise_floor double precision;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS total_air_time_secs bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS n_sent_flood bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS n_sent_direct bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS n_recv_flood bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS n_recv_direct bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS err_events bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS n_direct_dups bigint;
+ALTER TABLE IF EXISTS metrics
+  ADD COLUMN IF NOT EXISTS n_flood_dups bigint;
 DO $$
 BEGIN
   IF EXISTS (

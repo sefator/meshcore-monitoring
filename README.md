@@ -23,6 +23,7 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
    - Validates request payloads with Zod.
    - Auto-registers devices by public key.
    - Inserts metrics, neighbors, and heartbeats into PostgreSQL/TimescaleDB.
+   - Persists the current repeater status surface in explicit `metrics` columns rather than a JSON status blob.
 
 3. **Database**
 
@@ -176,7 +177,8 @@ Persistent edge files live in two places:
   - polls Meshcore companion,
   - batches and signs payloads,
   - ingest verifies and writes to TimescaleDB.
-- Battery is carried end-to-end as a voltage in volts (for example `4.05`), derived from Meshcore `batt_milli_volts`.
+- Current repeater status telemetry is carried end-to-end as explicit metric fields/columns, including raw `battery_milli_volts` / `snr_raw`, `noise_floor`, `air_time`, queue length, packet totals plus direct/flood splits, error events, and duplicate counts.
+- `battery` remains a derived volts value (for example `4.05`) alongside raw `battery_milli_volts`; storage is explicit `metrics` columns, not a JSON status blob.
 - The implemented ingest API is currently just:
   - `GET /health`
   - `POST /ingest`

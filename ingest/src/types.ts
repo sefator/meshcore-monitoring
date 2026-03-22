@@ -12,14 +12,25 @@ export const metricsItemSchema = z.object({
   repeater_id: z.string(),
   rssi: z.number().optional(),
   snr: z.number().optional(),
+  snr_raw: z.number().int().optional(),
   battery: z.number().positive().max(10).optional(),
+  battery_milli_volts: z.number().int().nonnegative().optional(),
   power: z.enum(["mains", "battery", "solar", "unknown"]).optional(),
   uptime: z.number().int().nonnegative().optional(),
+  air_time: z.number().int().nonnegative().optional(),
   link_quality: z.number().min(0).max(1).optional(),
   neighbors_count: z.number().int().nonnegative().optional(),
+  noise_floor: z.number().optional(),
   packets_sent: z.number().int().nonnegative().optional(),
+  packets_sent_direct: z.number().int().nonnegative().optional(),
+  packets_sent_flood: z.number().int().nonnegative().optional(),
   packets_recv: z.number().int().nonnegative().optional(),
-  queue_len: z.number().int().nonnegative().optional()
+  packets_recv_direct: z.number().int().nonnegative().optional(),
+  packets_recv_flood: z.number().int().nonnegative().optional(),
+  queue_len: z.number().int().nonnegative().optional(),
+  error_events: z.number().int().nonnegative().optional(),
+  direct_duplicates: z.number().int().nonnegative().optional(),
+  flood_duplicates: z.number().int().nonnegative().optional()
 });
 
 export const neighborsItemSchema = z.object({
