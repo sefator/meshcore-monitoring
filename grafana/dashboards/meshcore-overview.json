@@ -232,7 +232,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "volt"
         },
         "overrides": []
       },
@@ -262,11 +262,11 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.neighbors_count) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.neighbors_count IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.battery) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.battery IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
           "refId": "A"
         }
       ],
-      "title": "Average neighbors count by repeater",
+      "title": "Battery voltage by repeater",
       "type": "timeseries"
     },
     {
@@ -275,7 +275,9 @@
         "uid": "meshcore-timescaledb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "dBm"
+        },
         "overrides": []
       },
       "gridPos": {
@@ -286,7 +288,14 @@
       },
       "id": 6,
       "options": {
-        "showHeader": true
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
@@ -297,12 +306,12 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT DISTINCT ON (device_id)\n  device_id,\n  time AS last_heartbeat,\n  status,\n  version\nFROM device_heartbeats\nWHERE $__timeFilter(time)\nORDER BY device_id, time DESC;",
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.noise_floor) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.noise_floor IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
           "refId": "A"
         }
       ],
-      "title": "Latest device heartbeats",
-      "type": "table"
+      "title": "Noise floor by repeater",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -311,7 +320,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -341,11 +350,11 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.queue_len) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.queue_len IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "rawSql": "SELECT\n  date_trunc('hour', m.time) AS time,\n  COALESCE(r.label, m.repeater_id) AS metric,\n  GREATEST(MAX(m.total_air_time_secs) - MIN(m.total_air_time_secs), 0) / 3600.0 * 100 AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.total_air_time_secs IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
           "refId": "A"
         }
       ],
-      "title": "Average queue length by repeater",
+      "title": "Airtime (% of hour) by repeater",
       "type": "timeseries"
     },
     {
@@ -355,7 +364,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -385,47 +394,12 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  MAX(m.total_air_time_secs) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.total_air_time_secs IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "rawSql": "SELECT\n  date_trunc('hour', m.time) AS time,\n  COALESCE(r.label, m.repeater_id) AS metric,\n  GREATEST(MAX(COALESCE(m.n_direct_dups, 0) + COALESCE(m.n_flood_dups, 0)) - MIN(COALESCE(m.n_direct_dups, 0) + COALESCE(m.n_flood_dups, 0)), 0) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND (m.n_direct_dups IS NOT NULL OR m.n_flood_dups IS NOT NULL)\nGROUP BY 1, 2\nORDER BY 1, 2;",
           "refId": "A"
         }
       ],
-      "title": "Total air time by repeater",
+      "title": "Duplicates per hour by repeater",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "postgres",
-        "uid": "meshcore-timescaledb"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 36
-      },
-      "id": 7,
-      "options": {
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "postgres",
-            "uid": "meshcore-timescaledb"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  COALESCE(r.label, latest.repeater_id) AS repeater,\n  latest.time AS last_sample,\n  latest.rssi,\n  latest.snr,\n  latest.battery,\n  latest.link_quality,\n  latest.neighbors_count,\n  latest.queue_len\nFROM (\n  SELECT DISTINCT ON (repeater_id)\n    repeater_id,\n    time,\n    rssi,\n    snr,\n    battery,\n    link_quality,\n    neighbors_count,\n    queue_len\n  FROM metrics\n  WHERE $__timeFilter(time)\n  ORDER BY repeater_id, time DESC\n) latest\nLEFT JOIN repeaters r ON r.repeater_id = latest.repeater_id\nORDER BY repeater;",
-          "refId": "A"
-        }
-      ],
-      "title": "Latest repeater samples",
-      "type": "table"
     },
     {
       "datasource": {
@@ -477,9 +451,7 @@
         "uid": "meshcore-timescaledb"
       },
       "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
+        "defaults": {},
         "overrides": []
       },
       "gridPos": {
@@ -490,14 +462,7 @@
       },
       "id": 11,
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "showHeader": true
       },
       "targets": [
         {
@@ -506,14 +471,49 @@
             "uid": "meshcore-timescaledb"
           },
           "editorMode": "code",
-          "format": "time_series",
+          "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  MAX(COALESCE(m.n_direct_dups, 0) + COALESCE(m.n_flood_dups, 0)) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND (m.n_direct_dups IS NOT NULL OR m.n_flood_dups IS NOT NULL)\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "rawSql": "SELECT DISTINCT ON (device_id)\n  device_id,\n  time AS last_heartbeat,\n  status,\n  version\nFROM device_heartbeats\nWHERE $__timeFilter(time)\nORDER BY device_id, time DESC;",
           "refId": "A"
         }
       ],
-      "title": "Total duplicates by repeater",
-      "type": "timeseries"
+      "title": "Latest device heartbeats",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  COALESCE(r.label, latest.repeater_id) AS repeater,\n  latest.time AS last_sample,\n  latest.rssi,\n  latest.snr,\n  latest.battery,\n  latest.link_quality,\n  latest.neighbors_count,\n  latest.queue_len\nFROM (\n  SELECT DISTINCT ON (repeater_id)\n    repeater_id,\n    time,\n    rssi,\n    snr,\n    battery,\n    link_quality,\n    neighbors_count,\n    queue_len\n  FROM metrics\n  WHERE $__timeFilter(time)\n  ORDER BY repeater_id, time DESC\n) latest\nLEFT JOIN repeaters r ON r.repeater_id = latest.repeater_id\nORDER BY repeater;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest repeater samples",
+      "type": "table"
     }
   ],
   "refresh": "30s",

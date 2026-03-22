@@ -277,6 +277,16 @@ async function runWindow() {
     `window_to=${batch.window.to}`,
   );
   await sendBatchWithSummary("window", batch, schedule.length, metricsCollected);
+
+  const remainingWindowMs = windowEnd.getTime() - Date.now();
+  if (remainingWindowMs > 0) {
+    log.info(
+      "waiting for next collection window",
+      `delay_ms=${remainingWindowMs}`,
+      `next_window_at=${windowEnd.toISOString()}`,
+    );
+    await sleep(remainingWindowMs);
+  }
 }
 
 async function main() {
