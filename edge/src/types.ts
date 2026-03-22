@@ -11,6 +11,7 @@ export type MetricSample = {
   repeater_id: string;
   rssi?: number;
   snr?: number;
+  // Battery voltage in volts, derived from batt_milli_volts when available.
   battery?: number;
   power?: "mains" | "battery" | "solar" | "unknown";
   uptime?: number;

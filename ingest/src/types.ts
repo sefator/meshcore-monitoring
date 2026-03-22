@@ -12,7 +12,7 @@ export const metricsItemSchema = z.object({
   repeater_id: z.string(),
   rssi: z.number().optional(),
   snr: z.number().optional(),
-  battery: z.number().int().min(0).max(100).optional(),
+  battery: z.number().positive().max(10).optional(),
   power: z.enum(["mains", "battery", "solar", "unknown"]).optional(),
   uptime: z.number().int().nonnegative().optional(),
   link_quality: z.number().min(0).max(1).optional(),

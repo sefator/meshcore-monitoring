@@ -78,7 +78,7 @@ Implemented today:
 
 - `rssi`
 - `snr`
-- `battery` (derived from `batt_milli_volts`)
+- `battery` in volts (derived from `batt_milli_volts`)
 - `uptime`
 - `link_quality` (derived from packet counters)
 - `neighbors_count`
@@ -148,8 +148,7 @@ From `SPEC.md`, these are still missing or only partial:
 - A failure while reading one repeater can fail the current window rather than isolating that repeater and continuing.
 - Queue retry is simple: retry everything in order, stop on first failure, no richer backoff/state tracking.
 - Heartbeat status is hardcoded to `"ok"` and version is hardcoded to `"edge-dev"` in `edge/src/batcher.ts`.
-- Battery and link quality are inferred/derived, not guaranteed to match a device-native interpretation.
-- `edge/src/companion.ts` currently derives `battery` from `batt_milli_volts` as a decimal value, while `ingest/src/types.ts` validates `battery` as an integer `0..100`; batches that include battery data can currently fail ingest validation.
+- Battery and link quality are inferred/derived, not guaranteed to match a device-native interpretation; battery is emitted as volts derived from `batt_milli_volts`.
 - Neighbor paging in `edge/src/companion.ts` can detect count mismatches, but the response is mostly logging plus partial data.
 
 ### Ingest limitations
@@ -189,6 +188,6 @@ High-value near-term work, based on current code:
 
 ## Practical status
 
-- The core edge → ingest → TimescaleDB path exists and is readable, but battery samples do not currently cleanly satisfy ingest validation.
+- The core edge → ingest → TimescaleDB path exists and is readable, with battery stored as a voltage derived from `batt_milli_volts`.
 - The repo is suitable for targeted engineering work, especially around edge polling, ingest validation, and schema evolution.
 - Treat `SPEC.md` as design intent, but use the code paths above as the source of truth for current behavior.

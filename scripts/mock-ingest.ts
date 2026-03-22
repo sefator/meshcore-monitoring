@@ -37,6 +37,9 @@ type IterationData = {
   degraded: boolean;
 };
 
+const BATTERY_VOLTAGE_MIN = 3.3;
+const BATTERY_VOLTAGE_MAX = 4.2;
+
 const HELP_TEXT = `Generate synthetic repeater batches and post them directly to ingest.
 
 Usage:
@@ -102,6 +105,16 @@ function clamp(value: number, min: number, max: number) {
 function round(value: number, digits = 1) {
   const scale = 10 ** digits;
   return Math.round(value * scale) / scale;
+}
+
+function createInitialBatteryVoltage(power: MetricSample["power"], rng: () => number) {
+  if (power === "battery") {
+    return round(3.65 + rng() * 0.4, 2);
+  }
+  if (power === "solar") {
+    return round(3.85 + rng() * 0.25, 2);
+  }
+  return round(4.08 + rng() * 0.12, 2);
 }
 
 function sqlQuote(value: string) {
@@ -199,12 +212,13 @@ function createRepeaterStates(seed: string, count: number): RepeaterState[] {
   return Array.from({ length: count }, (_, index) => {
     const prefix = hashBytes(`${seed}:repeater:${index}`).subarray(0, 6).toString("hex").toUpperCase();
     const rng = createRng(`${seed}:repeater:${index}`);
+    const power = powerModes[index % powerModes.length];
     return {
       repeaterId: `mock-rpt-${String(index + 1).padStart(2, "0")}-${prefix.slice(0, 4)}`,
       neighborId: prefix,
-      power: powerModes[index % powerModes.length],
+      power,
       uptimeSeconds: 12 * 60 * 60 + Math.floor(rng() * 36 * 60 * 60),
-      battery: 52 + Math.floor(rng() * 44),
+      battery: createInitialBatteryVoltage(power, rng),
       baseRssi: -88 + rng() * 22,
       baseSnr: -2 + rng() * 12,
       packetsSent: 800 + Math.floor(rng() * 600),
@@ -233,11 +247,21 @@ function buildIterationData(
     state.packetsRecv += 16 + Math.floor(rng() * 36);
 
     if (state.power === "battery") {
-      state.battery = clamp(state.battery - (rng() > 0.85 ? 1 : 0), 15, 100);
+      state.battery = round(
+        clamp(
+          state.battery - (rng() > 0.45 ? 0.01 : 0) - (rng() > 0.9 ? 0.01 : 0),
+          BATTERY_VOLTAGE_MIN,
+          4.1
+        ),
+        2
+      );
     } else if (state.power === "solar") {
-      state.battery = clamp(state.battery + (rng() > 0.6 ? 1 : -1), 25, 100);
+      state.battery = round(
+        clamp(state.battery + (rng() > 0.5 ? 0.01 : -0.01), 3.7, BATTERY_VOLTAGE_MAX),
+        2
+      );
     } else {
-      state.battery = clamp(98 + Math.round(rng() * 2), 97, 100);
+      state.battery = round(clamp(4.15 + (rng() - 0.5) * 0.06, 4.1, BATTERY_VOLTAGE_MAX), 2);
     }
 
     const elapsedFactor = iteration / Math.max(1, states.length);
@@ -265,7 +289,7 @@ function buildIterationData(
       repeater_id: state.repeaterId,
       rssi,
       snr,
-      battery: Math.round(state.battery),
+      battery: state.battery,
       power: state.power,
       uptime: state.uptimeSeconds,
       link_quality: linkQuality,

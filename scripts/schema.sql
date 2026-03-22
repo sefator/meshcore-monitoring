@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS metrics (
   location_id text REFERENCES locations(location_id),
   rssi double precision,
   snr double precision,
-  battery integer,
+  battery double precision,
   power text,
   uptime bigint,
   link_quality double precision,
@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS metrics (
   packets_recv bigint,
   queue_len integer
 );
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'metrics'
+      AND column_name = 'battery'
+      AND data_type <> 'double precision'
+  ) THEN
+    ALTER TABLE metrics
+      ALTER COLUMN battery TYPE double precision
+      USING battery::double precision;
+  END IF;
+END $$;
 SELECT create_hypertable('metrics', 'time', if_not_exists => true);
 ALTER TABLE metrics SET (
   timescaledb.compress,

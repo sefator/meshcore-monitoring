@@ -64,7 +64,7 @@ in TimescaleDB for visualization in Grafana.
   "repeater_id": "string",
   "rssi": -85,
   "snr": 12,
-  "battery": 78,
+  "battery": 4.05,
   "power": "mains|battery|solar|unknown",
   "uptime": 123456,
   "link_quality": 0.92,
@@ -72,13 +72,12 @@ in TimescaleDB for visualization in Grafana.
 }
 ```
 
+`battery` is a floating-point voltage in volts, derived from Meshcore `batt_milli_volts`
+when available.
+
 `neighbors_count` should come from meshcore `connection.getNeighbours(...).totalNeighboursCount`.
 If all neighbor pages are collected for that sample, it should also equal the number of emitted
 neighbor rows for the same repeater/time.
-
-Current contract caveat: ingest validates `battery` as an integer `0..100`, while the current
-edge code derives `battery` from `batt_milli_volts` as a decimal value. Treat battery data as
-provisional until that mismatch is resolved.
 
 ### Neighbors Item
 ```json

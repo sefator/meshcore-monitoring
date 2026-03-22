@@ -176,7 +176,7 @@ Persistent edge files live in two places:
   - polls Meshcore companion,
   - batches and signs payloads,
   - ingest verifies and writes to TimescaleDB.
-- Current data-contract caveat: `edge/src/companion.ts` derives `battery` from `batt_milli_volts` as a decimal value, while `ingest/src/types.ts` currently validates `battery` as an integer `0..100`; batches that include battery data can currently fail validation.
+- Battery is carried end-to-end as a voltage in volts (for example `4.05`), derived from Meshcore `batt_milli_volts`.
 - The implemented ingest API is currently just:
   - `GET /health`
   - `POST /ingest`
