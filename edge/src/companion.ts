@@ -76,7 +76,7 @@ async function resolveContact(
     Buffer.from(publicKeyPrefix),
   );
   if (!contact) {
-    log.error("companion contact missing", repeater.repeaterId);
+    log.warn("companion contact missing", repeater.repeaterId);
     throw new Error(`contact ${repeater.repeaterId} not found on companion`);
   }
   return contact;
@@ -173,28 +173,81 @@ function mapMeshcoreNeighbourToSample(
   };
 }
 
+function formatOptionalMetric(value: number | undefined) {
+  return value == null ? "n/a" : String(value);
+}
+
+function summarizeStatus(stats: CompanionStats) {
+  const battery =
+    stats.batt_milli_volts == null
+      ? "n/a"
+      : `${Math.round(stats.batt_milli_volts / 10) / 100}V`;
+  const snr = stats.last_snr == null ? "n/a" : `${stats.last_snr / 4}`;
+  return [
+    `battery=${battery}`,
+    `rssi=${formatOptionalMetric(stats.last_rssi)}`,
+    `snr=${snr}`,
+    `queue_len=${formatOptionalMetric(stats.curr_tx_queue_len)}`,
+    `uptime=${formatOptionalMetric(stats.total_up_time_secs)}`,
+    `packets_sent=${formatOptionalMetric(stats.n_packets_sent)}`,
+    `packets_recv=${formatOptionalMetric(stats.n_packets_recv)}`,
+  ].join(" ");
+}
+
 async function fetchNeighborSamples(
   conn: CompanionConnection,
   contact: CompanionContact,
   repeater: Repeater,
   now: Date,
 ): Promise<NeighborFetchResult> {
+  let currentOffset = 0;
+  let currentPageSize: number | "default" = "default";
   try {
+    log.info(
+      "requesting repeater neighbors page",
+      repeater.repeaterId,
+      `offset=${currentOffset}`,
+      `page_size=${currentPageSize}`,
+    );
     const firstPage = await conn.getNeighbours(contact.publicKey);
+    log.info(
+      "repeater neighbors page received",
+      repeater.repeaterId,
+      `offset=${currentOffset}`,
+      `page_size=${currentPageSize}`,
+      `received=${firstPage.neighbours.length}`,
+      `reported_total=${firstPage.totalNeighboursCount}`,
+    );
     const neighbours = [...firstPage.neighbours];
     let offset = neighbours.length;
 
     while (offset < firstPage.totalNeighboursCount) {
+      currentOffset = offset;
+      currentPageSize = Math.min(255, firstPage.totalNeighboursCount - offset);
+      log.info(
+        "requesting repeater neighbors page",
+        repeater.repeaterId,
+        `offset=${currentOffset}`,
+        `page_size=${currentPageSize}`,
+      );
       const page = await conn.getNeighbours(
         contact.publicKey,
-        Math.min(255, firstPage.totalNeighboursCount - offset),
+        currentPageSize,
         offset,
+      );
+      log.info(
+        "repeater neighbors page received",
+        repeater.repeaterId,
+        `offset=${currentOffset}`,
+        `page_size=${currentPageSize}`,
+        `received=${page.neighbours.length}`,
       );
       if (!page.neighbours.length) {
         log.warn(
           "neighbor paging returned no results",
           repeater.repeaterId,
-          `offset=${offset}`,
+          `offset=${currentOffset}`,
+          `page_size=${currentPageSize}`,
           `reported_total=${firstPage.totalNeighboursCount}`,
         );
         break;
@@ -231,9 +284,20 @@ async function fetchNeighborSamples(
     return { neighbors, neighborsCount };
   } catch (err) {
     if (err === "timeout") {
-      log.warn("neighbor fetch timeout", repeater.repeaterId);
+      log.warn(
+        "neighbor fetch timeout",
+        repeater.repeaterId,
+        `offset=${currentOffset}`,
+        `page_size=${currentPageSize}`,
+      );
     } else {
-      log.error("neighbor fetch failed", repeater.repeaterId, err);
+      log.warn(
+        "neighbor fetch failed",
+        repeater.repeaterId,
+        `offset=${currentOffset}`,
+        `page_size=${currentPageSize}`,
+        err,
+      );
     }
     return { neighbors: [] };
   }
@@ -245,40 +309,66 @@ export async function readRepeaterMetrics(
   const publicKeyPrefix = derivePublicKeyPrefix(repeater.publicKeyHex);
   const now = new Date();
 
-  log.info("reading meshcore status", repeater.repeaterId);
-  const [status, neighborResult] = await withConnection(async (conn) => {
-    const contact = await resolveContact(conn, repeater, publicKeyPrefix);
-    log.debug(contact);
-    if (contact.advName) {
-      log.debug("resolved contact", repeater.repeaterId, contact.advName);
-    }
-    const password = repeater.password ?? "";
-    log.info("sending meshcore login", repeater.repeaterId);
-    await conn.login(
-      contact.publicKey,
-      password,
-      config.companion.statusTimeoutMs,
-    );
-    log.debug("login command sent", repeater.repeaterId);
+  log.info("starting repeater radio read", repeater.repeaterId);
+  try {
+    const [status, neighborResult] = await withConnection(async (conn) => {
+      log.info("resolving repeater contact", repeater.repeaterId);
+      const contact = await resolveContact(conn, repeater, publicKeyPrefix);
+      log.info(
+        "repeater contact resolved",
+        repeater.repeaterId,
+        contact.advName ? `adv_name=${contact.advName}` : "adv_name=unknown",
+      );
+      log.debug(contact);
 
-    const status: CompanionStats = await conn
-      .getStatus(contact.publicKey, config.companion.statusTimeoutMs)
-      .then((stats: CompanionStats) => {
-        log.debug(
-          "status received",
-          repeater.repeaterId,
-          stats.last_rssi,
-          stats.curr_tx_queue_len,
+      const password = repeater.password ?? "";
+      log.info("sending meshcore login", repeater.repeaterId);
+      try {
+        await conn.login(
+          contact.publicKey,
+          password,
+          config.companion.statusTimeoutMs,
         );
-        return stats;
-      });
+      } catch (err) {
+        log.warn("meshcore login failed", repeater.repeaterId, err);
+        throw err;
+      }
+      log.info("meshcore login succeeded", repeater.repeaterId);
 
-    const neighbors = await fetchNeighborSamples(conn, contact, repeater, now);
-    return [status, neighbors];
-  });
+      log.info("requesting repeater status", repeater.repeaterId);
+      const status: CompanionStats = await conn
+        .getStatus(contact.publicKey, config.companion.statusTimeoutMs)
+        .then((stats: CompanionStats) => {
+          log.info(
+            "repeater status received",
+            repeater.repeaterId,
+            summarizeStatus(stats),
+          );
+          log.debug("status received", repeater.repeaterId, stats);
+          return stats;
+        })
+        .catch((err) => {
+          log.warn("repeater status request failed", repeater.repeaterId, err);
+          throw err;
+        });
 
-  const metrics = mapStatusToMetric(repeater, status, now);
-  metrics.neighbors_count = neighborResult.neighborsCount;
-  const neighbors = neighborResult.neighbors;
-  return { metrics, neighbors };
+      const neighbors = await fetchNeighborSamples(conn, contact, repeater, now);
+      return [status, neighbors];
+    });
+
+    const metrics = mapStatusToMetric(repeater, status, now);
+    metrics.neighbors_count = neighborResult.neighborsCount;
+    const neighbors = neighborResult.neighbors;
+    log.info(
+      "repeater radio read complete",
+      repeater.repeaterId,
+      summarizeStatus(status),
+      `neighbors=${neighbors.length}`,
+      `reported_neighbors=${neighborResult.neighborsCount ?? "n/a"}`,
+    );
+    return { metrics, neighbors };
+  } catch (err) {
+    log.warn("repeater radio read failed", repeater.repeaterId, err);
+    throw err;
+  }
 }

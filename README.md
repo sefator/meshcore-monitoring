@@ -136,10 +136,17 @@ Important edge overrides in `edge/docker-compose.yml` are the same runtime env v
 - `WINDOW_HOURS`
 - `POLL_CONCURRENCY`
 - `REPEATERS_CONFIG_PATH`
+- `STARTUP_MODE`, `STARTUP_STAGGER_DELAY_MS`
 - `COMPANION_CONNECTION`, `COMPANION_TCP_HOST`, `COMPANION_TCP_PORT`
 - `COMPANION_SERIAL_PATH`
 - `COMPANION_TELEMETRY_TIMEOUT_MS`, `COMPANION_STATUS_TIMEOUT_MS`
 - `AUTH_TOKEN_TTL_SECONDS`
+
+Startup behavior defaults to `STARTUP_MODE=scheduled`, which keeps the previous behavior and waits for the normal scheduled polling windows. The other modes send a dedicated startup batch immediately on boot before scheduled windows resume:
+
+- `scheduled`: default behavior; no special startup sweep.
+- `immediate-once`: read all repeaters immediately and send one dedicated startup batch.
+- `immediate-staggered`: same dedicated startup batch, but pause `STARTUP_STAGGER_DELAY_MS` between repeater reads (default `1000` ms).
 
 Device identity and auth signing are **not** configured through env vars anymore. At runtime the edge agent asks the Meshcore device/companion for its public key/device identity and uses the device/companion to sign auth tokens.
 
@@ -188,6 +195,6 @@ Persistent edge files live in two places:
 - **Device auto-registration:** `ingest/src/device-store.ts`.
 - **Repeater configuration is file-based right now**, via `edge/config/repeaters.json`; there is no DB-backed repeater registry yet.
 - **Neighbor data is intentionally partial**: current Meshcore library responses reliably expose neighbor prefix and SNR, while fields like per-neighbor RSSI, link quality, and hops remain optional.
-- `edge/src/main.ts` is an **infinite loop** and waits across the configured polling window. Do not run `bun run --cwd edge dev` as a casual smoke test unless you actually want hardware/network side effects.
+- `edge/src/main.ts` is an **infinite loop**. With the default `scheduled` startup mode it waits across the configured polling window; the immediate startup modes send a dedicated startup batch first, then resume the normal schedule. Do not run `bun run --cwd edge dev` as a casual smoke test unless you actually want hardware/network side effects.
 - `POLL_CONCURRENCY` exists in edge config, but the current `main.ts` processing is still sequential.
 - `REPEATERS_CONFIG_PATH` resolves relative to the current working directory. `bun run --cwd edge dev` works with the default `config/repeaters.json`; if you launch the process from the repo root without `--cwd edge`, point it at `edge/config/repeaters.json`.

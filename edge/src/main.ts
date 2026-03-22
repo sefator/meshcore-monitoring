@@ -4,6 +4,124 @@ import { buildSchedule } from "./scheduler.js";
 import { BatchBuilder } from "./batcher.js";
 import { sendBatch, flushQueue } from "./sender.js";
 import { loadRepeaters } from "./repeaters-config.js";
+import { log } from "./log.js";
+import type { MetricSample, NeighborSample } from "./types.js";
+
+async function sleep(delayMs: number) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function buildBatch(
+  windowStart: Date,
+  windowEnd: Date,
+  metrics: MetricSample[],
+  neighbors: NeighborSample[],
+) {
+  const batcher = new BatchBuilder(windowStart, windowEnd);
+  metrics.forEach((sample) => batcher.addMetric(sample));
+  neighbors.forEach((sample) => batcher.addNeighbors(sample));
+  return batcher.build();
+}
+
+async function runStartupCollection() {
+  if (config.startup.mode === "scheduled") {
+    return;
+  }
+
+  const startupStartedAt = new Date();
+  const repeaters = await loadRepeaters();
+  const metrics: MetricSample[] = [];
+  const neighbors: NeighborSample[] = [];
+  let metricsCollected = 0;
+  let neighborsCollected = 0;
+
+  log.info(
+    "startup collection started",
+    `mode=${config.startup.mode}`,
+    `from=${startupStartedAt.toISOString()}`,
+    `${repeaters.length} repeaters`,
+  );
+
+  for (const [index, repeater] of repeaters.entries()) {
+    if (
+      config.startup.mode === "immediate-staggered" &&
+      index > 0 &&
+      config.startup.staggerDelayMs > 0
+    ) {
+      log.info(
+        "waiting for staggered startup radio read",
+        repeater.repeaterId,
+        `delay_ms=${config.startup.staggerDelayMs}`,
+        `sequence=${index + 1}/${repeaters.length}`,
+      );
+      await sleep(config.startup.staggerDelayMs);
+    }
+
+    log.info(
+      "starting startup radio read",
+      repeater.repeaterId,
+      `sequence=${index + 1}/${repeaters.length}`,
+    );
+    const { metrics: metric, neighbors: repeaterNeighbors } =
+      await readRepeaterMetrics(repeater);
+    metrics.push(metric);
+    neighbors.push(...repeaterNeighbors);
+    metricsCollected += 1;
+    neighborsCollected += repeaterNeighbors.length;
+    log.info(
+      "startup radio read complete",
+      repeater.repeaterId,
+      `sequence=${index + 1}/${repeaters.length}`,
+      `metrics=${metricsCollected}`,
+      `neighbors=${repeaterNeighbors.length}`,
+      `startup_neighbors=${neighborsCollected}`,
+    );
+  }
+
+  const startupEndedAt = new Date();
+  log.info(
+    "startup collection complete",
+    `mode=${config.startup.mode}`,
+    `from=${startupStartedAt.toISOString()}`,
+    `to=${startupEndedAt.toISOString()}`,
+    `metrics=${metricsCollected}`,
+    `neighbors=${neighborsCollected}`,
+  );
+  log.info("building startup batch");
+  const batch = await buildBatch(
+    startupStartedAt,
+    startupEndedAt,
+    metrics,
+    neighbors,
+  );
+  log.info(
+    "startup batch built",
+    batch.batch_id,
+    `metrics=${batch.metrics.length}`,
+    `neighbors=${batch.neighbors.length}`,
+    `window_from=${batch.window.from}`,
+    `window_to=${batch.window.to}`,
+  );
+  log.info("sending startup batch", batch.batch_id);
+  try {
+    await sendBatch(batch);
+    log.info("startup batch send complete", batch.batch_id);
+  } catch (err) {
+    log.warn("startup batch send failed", batch.batch_id);
+    throw err;
+  }
+  log.info(
+    "flushing queued batches",
+    `after_batch=${batch.batch_id}`,
+    "source=startup",
+  );
+  await flushQueue();
+  log.info(
+    "queued batch flush complete",
+    `after_batch=${batch.batch_id}`,
+    "source=startup",
+  );
+}
 
 async function runWindow() {
   const windowStart = new Date();
@@ -12,30 +130,88 @@ async function runWindow() {
   );
   const repeaters = await loadRepeaters();
   const schedule = buildSchedule(repeaters, windowStart);
-  const batcher = new BatchBuilder(windowStart, windowEnd);
+  const metrics: MetricSample[] = [];
+  const neighbors: NeighborSample[] = [];
+  let metricsCollected = 0;
+  let neighborsCollected = 0;
+
+  log.info(
+    "collection window started",
+    `from=${windowStart.toISOString()}`,
+    `to=${windowEnd.toISOString()}`,
+    `${schedule.length} repeaters`,
+  );
 
   for (const item of schedule) {
     const waitMs = item.scheduledAt.getTime() - Date.now();
     if (waitMs > 0) {
+      log.info(
+        "waiting for scheduled radio read",
+        item.repeater.repeaterId,
+        `delay_ms=${waitMs}`,
+        `scheduled_at=${item.scheduledAt.toISOString()}`,
+      );
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
-    const { metrics, neighbors } = await readRepeaterMetrics(item.repeater);
-    batcher.addMetric(metrics);
-    neighbors.forEach((n) => batcher.addNeighbors(n));
+    log.info(
+      "starting scheduled radio read",
+      item.repeater.repeaterId,
+      `scheduled_at=${item.scheduledAt.toISOString()}`,
+    );
+    const { metrics: metric, neighbors: repeaterNeighbors } =
+      await readRepeaterMetrics(item.repeater);
+    metrics.push(metric);
+    neighbors.push(...repeaterNeighbors);
+    metricsCollected += 1;
+    neighborsCollected += repeaterNeighbors.length;
+    log.info(
+      "scheduled radio read complete",
+      item.repeater.repeaterId,
+      `metrics=${metricsCollected}`,
+      `neighbors=${repeaterNeighbors.length}`,
+      `window_neighbors=${neighborsCollected}`,
+    );
   }
 
-  const batch = await batcher.build();
-  await sendBatch(batch);
+  log.info(
+    "collection window complete",
+    `from=${windowStart.toISOString()}`,
+    `to=${windowEnd.toISOString()}`,
+    `metrics=${metricsCollected}`,
+    `neighbors=${neighborsCollected}`,
+  );
+  log.info("building batch for window");
+  const batch = await buildBatch(windowStart, windowEnd, metrics, neighbors);
+  log.info(
+    "batch built",
+    batch.batch_id,
+    `metrics=${batch.metrics.length}`,
+    `neighbors=${batch.neighbors.length}`,
+    `window_from=${batch.window.from}`,
+    `window_to=${batch.window.to}`,
+  );
+  log.info("sending batch", batch.batch_id);
+  try {
+    await sendBatch(batch);
+    log.info("batch send complete", batch.batch_id);
+  } catch (err) {
+    log.warn("batch send failed", batch.batch_id);
+    throw err;
+  }
+  log.info("flushing queued batches", `after_batch=${batch.batch_id}`);
   await flushQueue();
+  log.info("queued batch flush complete", `after_batch=${batch.batch_id}`);
 }
 
 async function main() {
+  await runStartupCollection();
+
   while (true) {
     await runWindow();
   }
 }
 
 main().catch((err) => {
-  console.error(err);
+  log.error("edge app exiting", err);
   process.exit(1);
 });
