@@ -1,6 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { batchSchema, resolveIngestLocationId } from "./types.js";
-import { ensureLocationExists, upsertDeviceByPublicKey } from "./device-store.js";
+import type { BatchPayload } from "./types.js";
+import {
+  ensureLocationExists,
+  ensureRepeatersExist,
+  upsertDeviceByPublicKey
+} from "./device-store.js";
 import { verifyJwtToken } from "./tokens.js";
 import { sql } from "./database.js";
 import { log } from "./log.js";
@@ -21,12 +26,29 @@ function getConstraintName(error: PostgresErrorLike) {
   return error.constraint_name ?? error.constraint;
 }
 
+function matchesConstraintName(error: PostgresErrorLike, constraintName: string) {
+  const actualConstraintName = getConstraintName(error);
+  return actualConstraintName?.endsWith(constraintName) ?? false;
+}
+
+function getForeignKeyViolationKind(error: PostgresErrorLike) {
+  if (
+    matchesConstraintName(error, "metrics_repeater_id_fkey") ||
+    matchesConstraintName(error, "neighbors_repeater_id_fkey")
+  ) {
+    return "repeater";
+  }
+  if (matchesConstraintName(error, "device_heartbeats_device_id_fkey")) {
+    return "device";
+  }
+  return null;
+}
+
 function getForeignKeyConflictMessage(error: PostgresErrorLike) {
-  switch (getConstraintName(error)) {
-    case "metrics_repeater_id_fkey":
-    case "neighbors_repeater_id_fkey":
-      return "unknown repeater_id; seed the referenced repeaters before ingesting batches";
-    case "device_heartbeats_device_id_fkey":
+  switch (getForeignKeyViolationKind(error)) {
+    case "repeater":
+      return "repeater reference could not be prepared before ingest; retry or inspect repeater data";
+    case "device":
       return "device registration did not complete before heartbeat insert";
     default:
       return "missing referenced location or repeater data; seed reference rows before ingesting batches";
@@ -43,14 +65,18 @@ function isForeignKeyViolation(error: unknown): error is PostgresErrorLike {
 }
 
 function isHandledForeignKeyViolation(error: PostgresErrorLike) {
-  switch (getConstraintName(error)) {
-    case "metrics_repeater_id_fkey":
-    case "neighbors_repeater_id_fkey":
-    case "device_heartbeats_device_id_fkey":
-      return true;
-    default:
-      return false;
+  return getForeignKeyViolationKind(error) !== null;
+}
+
+function getBatchRepeaterIds(batch: BatchPayload) {
+  const repeaterIds = new Set<string>();
+  for (const metric of batch.metrics) {
+    repeaterIds.add(metric.repeater_id);
   }
+  for (const neighbor of batch.neighbors) {
+    repeaterIds.add(neighbor.repeater_id);
+  }
+  return repeaterIds;
 }
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -122,6 +148,7 @@ export async function registerRoutes(app: FastifyInstance) {
         const tx = await sql.reserve();
         try {
           await tx`BEGIN`;
+          await ensureRepeatersExist(getBatchRepeaterIds(batch), locationId, tx);
           for (const metric of batch.metrics) {
             const rssi = metric.rssi ?? null;
             const snr = metric.snr ?? null;

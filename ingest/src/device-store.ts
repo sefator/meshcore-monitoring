@@ -1,3 +1,4 @@
+import type { Sql } from "postgres";
 import { sql } from "./database.js";
 import type { CompanionDevice, SignatureAlgo } from "./config.js";
 import type { LocationId } from "./types.js";
@@ -18,6 +19,24 @@ export async function ensureLocationExists(locationId: LocationId) {
     VALUES (${locationId}, ${locationId}, ${locationId})
     ON CONFLICT (location_id) DO NOTHING
   `;
+}
+
+export async function ensureRepeatersExist(
+  repeaterIds: Iterable<string>,
+  locationId: LocationId,
+  db: Sql = sql
+) {
+  const uniqueRepeaterIds = Array.from(new Set(repeaterIds));
+  for (const repeaterId of uniqueRepeaterIds) {
+    await db`
+      INSERT INTO repeaters (repeater_id, location_id, label)
+      VALUES (${repeaterId}, ${locationId}, ${repeaterId})
+      ON CONFLICT (repeater_id) DO UPDATE
+      SET
+        location_id = EXCLUDED.location_id,
+        label = COALESCE(repeaters.label, EXCLUDED.label)
+    `;
+  }
 }
 
 export async function getDevice(deviceId: string) {
