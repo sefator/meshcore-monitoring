@@ -44,6 +44,11 @@ export type SigningSelfCheckResult = {
 };
 
 const SIGNING_SELF_CHECK_CONTEXT = "meshcore-monitoring:signing-self-test:v1";
+let localSigningMaterialPromise: Promise<{
+  privateKeyHex: string;
+  publicKeyHex: string;
+}> | null = null;
+let localSigningMaterialClaimedHex: string | null = null;
 let resolvedSigningPublicKeyPromise: Promise<{
   publicKeyHex: string;
   source: "self-info" | "exported-private-key";
@@ -95,6 +100,53 @@ function getExportedPrivateKeyCandidates(exportedPrivateKey: Uint8Array) {
 
 function verifySignature(signature: Uint8Array, messageBytes: Uint8Array, publicKeyHex: string) {
   return ed25519.verify(signature, messageBytes, Buffer.from(publicKeyHex, "hex"));
+}
+
+async function resolveLocalSigningMaterial(identity?: DeviceSigningIdentity) {
+  const resolvedIdentity = identity ?? (await getDeviceIdentity());
+  const claimedPublicKeyHex = resolvedIdentity.publicKeyHex.toUpperCase();
+  if (localSigningMaterialPromise && localSigningMaterialClaimedHex === claimedPublicKeyHex) {
+    return localSigningMaterialPromise;
+  }
+
+  localSigningMaterialClaimedHex = claimedPublicKeyHex;
+  localSigningMaterialPromise = (async () => {
+    const exportedPrivateKey = await exportDevicePrivateKey();
+    if (exportedPrivateKey.length < 32) {
+      throw new Error("exported private key too short");
+    }
+
+    const secretKey = exportedPrivateKey.subarray(0, 32);
+    const privateKeyHex = Buffer.from(secretKey).toString("hex").toUpperCase();
+    const publicKeyHex = toPublicKeyHex(ed25519.getPublicKey(secretKey));
+
+    if (exportedPrivateKey.length >= 64) {
+      const trailingPublicKeyHex = toPublicKeyHex(exportedPrivateKey.subarray(32, 64));
+      if (trailingPublicKeyHex !== publicKeyHex) {
+        log.warn("exported companion key material is internally inconsistent", {
+          deviceId: resolvedIdentity.deviceId,
+          derivedPublicKeyFingerprint: toPublicKeyFingerprint(publicKeyHex),
+          trailingPublicKeyFingerprint: toPublicKeyFingerprint(trailingPublicKeyHex)
+        });
+      }
+    }
+
+    if (publicKeyHex !== claimedPublicKeyHex) {
+      log.warn("companion exported signing key differs from self-reported key", {
+        deviceId: resolvedIdentity.deviceId,
+        claimedPublicKeyFingerprint: toPublicKeyFingerprint(claimedPublicKeyHex),
+        signingPublicKeyFingerprint: toPublicKeyFingerprint(publicKeyHex)
+      });
+    }
+
+    return { privateKeyHex, publicKeyHex };
+  })().catch((err) => {
+    localSigningMaterialPromise = null;
+    localSigningMaterialClaimedHex = null;
+    throw err;
+  });
+
+  return localSigningMaterialPromise;
 }
 
 async function resolveSigningPublicKey(identity?: DeviceSigningIdentity) {
@@ -171,15 +223,31 @@ export async function createAuthToken(identity?: {
   deviceId: string;
 }) {
   const resolvedIdentity = identity ?? (await getDeviceIdentity());
-  const signingPublicKey = await resolveSigningPublicKey(resolvedIdentity);
-  const signingInput = buildAuthTokenSigningInput({
-    publicKeyHex: signingPublicKey.publicKeyHex,
-    deviceId: resolvedIdentity.deviceId,
-    locationId: config.locationId,
-    tokenTtlSeconds: config.auth.tokenTtlSeconds
-  });
-  const signature = await signWithDevice(new TextEncoder().encode(signingInput));
-  return `${signingInput}.${Buffer.from(signature).toString("hex")}`;
+  try {
+    const localSigningMaterial = await resolveLocalSigningMaterial(resolvedIdentity);
+    return createSignedAuthToken({
+      publicKeyHex: localSigningMaterial.publicKeyHex,
+      privateKeyHex: localSigningMaterial.privateKeyHex,
+      deviceId: resolvedIdentity.deviceId,
+      locationId: config.locationId,
+      tokenTtlSeconds: config.auth.tokenTtlSeconds
+    });
+  } catch (err) {
+    log.warn("falling back to companion sign() for auth token", {
+      deviceId: resolvedIdentity.deviceId,
+      claimedPublicKeyFingerprint: toPublicKeyFingerprint(resolvedIdentity.publicKeyHex),
+      error: err instanceof Error ? err.message : String(err)
+    });
+    const signingPublicKey = await resolveSigningPublicKey(resolvedIdentity);
+    const signingInput = buildAuthTokenSigningInput({
+      publicKeyHex: signingPublicKey.publicKeyHex,
+      deviceId: resolvedIdentity.deviceId,
+      locationId: config.locationId,
+      tokenTtlSeconds: config.auth.tokenTtlSeconds
+    });
+    const signature = await signWithDevice(new TextEncoder().encode(signingInput));
+    return `${signingInput}.${Buffer.from(signature).toString("hex")}`;
+  }
 }
 
 export async function runSigningSelfCheck(
