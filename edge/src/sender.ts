@@ -5,6 +5,8 @@ import { log } from "./log.js";
 import type { BatchPayload } from "./types.js";
 import { createAuthToken } from "./signing.js";
 
+const MAX_RESPONSE_TEXT_LENGTH = 300;
+
 function normalizeBatchDeviceId(batch: BatchPayload, deviceId: string): BatchPayload {
   if (batch.device_id === deviceId) {
     return batch;
@@ -15,7 +17,10 @@ function normalizeBatchDeviceId(batch: BatchPayload, deviceId: string): BatchPay
 function getBatchLogContext(batch: BatchPayload, extra: Record<string, unknown> = {}) {
   return {
     url: config.ingestUrl,
+    deviceId: batch.device_id,
+    locationId: batch.location_id,
     batchId: batch.batch_id,
+    sentAt: batch.sent_at,
     metricsCount: batch.metrics.length,
     neighborsCount: batch.neighbors.length,
     hasHeartbeat: Boolean(batch.heartbeat),
@@ -25,6 +30,33 @@ function getBatchLogContext(batch: BatchPayload, extra: Record<string, unknown> 
 
 function formatError(err: unknown) {
   return err instanceof Error ? err.message : String(err);
+}
+
+function truncateText(value: string, maxLength = MAX_RESPONSE_TEXT_LENGTH) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
+async function getResponseLogContext(res: Response) {
+  const responseContext: Record<string, unknown> = {
+    status: res.status,
+    statusText: res.statusText || undefined,
+    responseContentType: res.headers.get("content-type") ?? undefined
+  };
+
+  try {
+    const responseText = truncateText(res.text ? (await res.text()).trim() : "");
+    if (responseText) {
+      responseContext.responseText = responseText;
+    }
+  } catch (err) {
+    responseContext.responseReadError = formatError(err);
+  }
+
+  return responseContext;
 }
 
 export async function sendBatch(batch: BatchPayload) {
@@ -51,7 +83,10 @@ export async function sendBatch(batch: BatchPayload) {
   }
 
   if (!res.ok) {
-    log.warn("ingest write failed", { ...logContext, status: res.status });
+    log.warn("ingest write failed", {
+      ...logContext,
+      ...(await getResponseLogContext(res))
+    });
     await enqueueBatch(body);
     throw new Error(`ingest status ${res.status}`);
   }
@@ -66,7 +101,6 @@ export async function flushQueue() {
   }
 
   const identity = await getDeviceIdentity();
-  const token = await createAuthToken(identity);
   for (const entry of entries) {
     let queuedBatch: BatchPayload;
     try {
@@ -86,6 +120,7 @@ export async function flushQueue() {
 
     let res: Response;
     try {
+      const token = await createAuthToken(identity);
       res = await fetch(config.ingestUrl, {
         method: "POST",
         body,
@@ -112,9 +147,6 @@ export async function flushQueue() {
       continue;
     }
 
-    log.warn("queued batch replay failed", {
-      ...logContext,
-      status: res.status
-    });
+    log.warn("queued batch replay failed", { ...logContext, ...(await getResponseLogContext(res)) });
   }
 }

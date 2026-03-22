@@ -9,6 +9,7 @@ import {
 import { verifyJwtToken } from "./tokens.js";
 import { sql } from "./database.js";
 import { log } from "./log.js";
+import { base64urlDecode } from "./utils/base64.js";
 
 type IngestHeaders = {
   "x-device-id"?: string;
@@ -79,6 +80,70 @@ function getBatchRepeaterIds(batch: BatchPayload) {
   return repeaterIds;
 }
 
+function redactValue(value: string, prefixLength = 8, suffixLength = 8) {
+  if (value.length <= prefixLength + suffixLength) {
+    return value;
+  }
+
+  return `${value.slice(0, prefixLength)}…${value.slice(-suffixLength)}`;
+}
+
+function getSafeTokenContext(token: string) {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return { format: "invalid" as const };
+  }
+
+  const [encodedHeader, encodedPayload] = parts;
+
+  try {
+    const rawHeader = JSON.parse(base64urlDecode(encodedHeader).toString("utf8"));
+    const rawPayload = JSON.parse(base64urlDecode(encodedPayload).toString("utf8"));
+
+    return {
+      format: "jwt" as const,
+      header: {
+        alg: typeof rawHeader.alg === "string" ? rawHeader.alg : undefined,
+        typ: typeof rawHeader.typ === "string" ? rawHeader.typ : undefined
+      },
+      claims: {
+        deviceId: typeof rawPayload.deviceId === "string" ? rawPayload.deviceId : undefined,
+        locationId: typeof rawPayload.locationId === "string" ? rawPayload.locationId : undefined,
+        publicKey: typeof rawPayload.publicKey === "string" ? redactValue(rawPayload.publicKey) : undefined,
+        hasIat: typeof rawPayload.iat === "number",
+        hasExp: typeof rawPayload.exp === "number"
+      }
+    };
+  } catch (error) {
+    return {
+      format: "jwt" as const,
+      parseError: error instanceof Error ? error.message : "token parse error"
+    };
+  }
+}
+
+function logAuthRejection({
+  reason,
+  requestId,
+  headers,
+  authToken,
+  verificationError
+}: {
+  reason: string;
+  requestId: string;
+  headers: IngestHeaders;
+  authToken?: string;
+  verificationError?: string;
+}) {
+  log.warn("ingest auth rejected", {
+    reason,
+    requestId,
+    deviceIdHeader: headers["x-device-id"] ?? null,
+    verificationError,
+    token: authToken ? getSafeTokenContext(authToken) : undefined
+  });
+}
+
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ status: "ok" }));
 
@@ -98,12 +163,24 @@ export async function registerRoutes(app: FastifyInstance) {
 
       const authToken = headers["x-auth-token"];
       if (!authToken) {
+        logAuthRejection({
+          reason: "missing auth token",
+          requestId: request.id,
+          headers
+        });
         return reply.status(401).send({ error: "missing auth token" });
       }
 
       const tokenInfo = verifyJwtToken(authToken);
 
       if (!tokenInfo.valid) {
+        logAuthRejection({
+          reason: "invalid auth token",
+          requestId: request.id,
+          headers,
+          authToken,
+          verificationError: tokenInfo.error
+        });
         return reply.status(401).send({ error: tokenInfo.error ?? "invalid token" });
       }
 
