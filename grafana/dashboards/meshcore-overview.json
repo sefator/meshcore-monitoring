@@ -65,7 +65,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -111,7 +113,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -306,6 +310,94 @@
         "uid": "meshcore-timescaledb"
       },
       "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  AVG(m.queue_len) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.queue_len IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Average queue length by repeater",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  MAX(m.total_air_time_secs) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.total_air_time_secs IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Total air time by repeater",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
         "defaults": {},
         "overrides": []
       },
@@ -313,7 +405,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 36
       },
       "id": 7,
       "options": {
@@ -334,12 +426,102 @@
       ],
       "title": "Latest repeater samples",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  MAX(m.err_events) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND m.err_events IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Error events by repeater",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(m.time, $__interval),\n  COALESCE(r.label, m.repeater_id) AS metric,\n  MAX(COALESCE(m.n_direct_dups, 0) + COALESCE(m.n_flood_dups, 0)) AS value\nFROM metrics m\nLEFT JOIN repeaters r ON r.repeater_id = m.repeater_id\nWHERE $__timeFilter(m.time) AND (m.n_direct_dups IS NOT NULL OR m.n_flood_dups IS NOT NULL)\nGROUP BY 1, 2\nORDER BY 1, 2;",
+          "refId": "A"
+        }
+      ],
+      "title": "Total duplicates by repeater",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["meshcore"],
+  "tags": [
+    "meshcore"
+  ],
   "templating": {
     "list": []
   },

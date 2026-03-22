@@ -1,0 +1,591 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT rssi AS value FROM metrics WHERE repeater_id = ${repeater:sqlstring} AND $__timeFilter(time) AND rssi IS NOT NULL ORDER BY time DESC LIMIT 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest RSSI",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT snr AS value FROM metrics WHERE repeater_id = ${repeater:sqlstring} AND $__timeFilter(time) AND snr IS NOT NULL ORDER BY time DESC LIMIT 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest SNR",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT battery AS value FROM metrics WHERE repeater_id = ${repeater:sqlstring} AND $__timeFilter(time) AND battery IS NOT NULL ORDER BY time DESC LIMIT 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest battery",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT neighbors_count AS value FROM metrics WHERE repeater_id = ${repeater:sqlstring} AND $__timeFilter(time) AND neighbors_count IS NOT NULL ORDER BY time DESC LIMIT 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest neighbors count",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(m.time, $__interval), 'RSSI' AS metric, AVG(m.rssi) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.rssi IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Noise floor' AS metric, AVG(m.noise_floor) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.noise_floor IS NOT NULL GROUP BY 1 ORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "RSSI and noise floor",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(m.time, $__interval), 'SNR' AS metric, AVG(m.snr) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.snr IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Link quality' AS metric, AVG(m.link_quality) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.link_quality IS NOT NULL GROUP BY 1 ORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "SNR and link quality",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(m.time, $__interval), 'Battery (V)' AS metric, AVG(m.battery) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.battery IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Battery (mV)' AS metric, AVG(m.battery_milli_volts) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.battery_milli_volts IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Uptime' AS metric, MAX(m.uptime) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.uptime IS NOT NULL GROUP BY 1 ORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Battery and uptime",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(m.time, $__interval), 'Packets sent' AS metric, MAX(m.packets_sent) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.packets_sent IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Packets recv' AS metric, MAX(m.packets_recv) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.packets_recv IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Sent direct' AS metric, MAX(m.n_sent_direct) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.n_sent_direct IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Sent flood' AS metric, MAX(m.n_sent_flood) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.n_sent_flood IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Recv direct' AS metric, MAX(m.n_recv_direct) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.n_recv_direct IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Recv flood' AS metric, MAX(m.n_recv_flood) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.n_recv_flood IS NOT NULL GROUP BY 1 ORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Traffic counters",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(m.time, $__interval), 'Queue length' AS metric, AVG(m.queue_len) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.queue_len IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Air time (s)' AS metric, MAX(m.total_air_time_secs) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.total_air_time_secs IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Error events' AS metric, MAX(m.err_events) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.err_events IS NOT NULL GROUP BY 1 ORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Queue, air time, and errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(m.time, $__interval), 'Direct duplicates' AS metric, MAX(m.n_direct_dups) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.n_direct_dups IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(m.time, $__interval), 'Flood duplicates' AS metric, MAX(m.n_flood_dups) AS value FROM metrics m WHERE $__timeFilter(m.time) AND m.repeater_id = ${repeater:sqlstring} AND m.n_flood_dups IS NOT NULL GROUP BY 1 UNION ALL SELECT $__timeGroupAlias(n.time, $__interval), 'Neighbor sightings' AS metric, COUNT(*)::double precision AS value FROM neighbors n WHERE $__timeFilter(n.time) AND n.repeater_id = ${repeater:sqlstring} GROUP BY 1 ORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicates and neighbor observations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 11,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(r.label, latest.repeater_id) AS repeater, latest.time AS last_sample, latest.rssi, latest.snr, latest.snr_raw, latest.battery, latest.battery_milli_volts, latest.noise_floor, latest.link_quality, latest.neighbors_count, latest.queue_len, latest.uptime, latest.total_air_time_secs, latest.packets_sent, latest.packets_recv, latest.n_sent_direct, latest.n_sent_flood, latest.n_recv_direct, latest.n_recv_flood, latest.err_events, latest.n_direct_dups, latest.n_flood_dups FROM (SELECT DISTINCT ON (repeater_id) repeater_id, time, rssi, snr, snr_raw, battery, battery_milli_volts, noise_floor, link_quality, neighbors_count, queue_len, uptime, total_air_time_secs, packets_sent, packets_recv, n_sent_direct, n_sent_flood, n_recv_direct, n_recv_flood, err_events, n_direct_dups, n_flood_dups FROM metrics WHERE repeater_id = ${repeater:sqlstring} AND $__timeFilter(time) ORDER BY repeater_id, time DESC) latest LEFT JOIN repeaters r ON r.repeater_id = latest.repeater_id;",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest repeater sample",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "meshcore-timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 12,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "meshcore-timescaledb"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT neighbor_id, COUNT(*) AS sightings, ROUND(AVG(snr)::numeric, 2) AS avg_snr, MAX(time) AS last_seen FROM neighbors WHERE repeater_id = ${repeater:sqlstring} AND $__timeFilter(time) GROUP BY neighbor_id ORDER BY sightings DESC, last_seen DESC LIMIT 20;",
+          "refId": "A"
+        }
+      ],
+      "title": "Top observed neighbors for repeater",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "meshcore"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": null,
+        "datasource": {
+          "type": "postgres",
+          "uid": "meshcore-timescaledb"
+        },
+        "definition": "SELECT repeater_id AS __value, COALESCE(label, repeater_id) AS __text FROM repeaters ORDER BY 2;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Repeater",
+        "multi": false,
+        "name": "repeater",
+        "options": [],
+        "query": "SELECT repeater_id AS __value, COALESCE(label, repeater_id) AS __text FROM repeaters ORDER BY 2;",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Meshcore Repeater Detail",
+  "uid": "meshcore-repeater-detail",
+  "version": 1,
+  "weekStart": ""
+}

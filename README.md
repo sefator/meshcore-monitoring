@@ -210,7 +210,7 @@ Persistent edge files live in two places:
   - `POST /ingest`
 - `SPEC.md` mentions `POST /devices/register` and optional `GET /metrics`, but those routes are **not implemented** right now.
 - There is **no automated test suite** in the repo today. Practical validation is currently linting plus ingest typechecking.
-- Grafana starts with a provisioned TimescaleDB datasource and two checked-in dashboards: `Meshcore Overview` and `Meshcore Neighbors`.
+- Grafana starts with a provisioned TimescaleDB datasource and three checked-in dashboards: `Meshcore Overview`, `Meshcore Neighbors`, and `Meshcore Repeater Detail`.
 
 ## Notes for contributors and coding agents
 
