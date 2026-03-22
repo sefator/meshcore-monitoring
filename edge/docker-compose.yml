@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      LOCATION_ID: ${LOCATION_ID:-demo-location}
+      LOCATION_ID: ${LOCATION_ID:-SFO}
       WINDOW_HOURS: ${WINDOW_HOURS:-8}
       INGEST_URL: ${INGEST_URL:-http://host.docker.internal:8080/ingest}
       POLL_CONCURRENCY: ${POLL_CONCURRENCY:-1}

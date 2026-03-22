@@ -33,7 +33,7 @@ function readNonNegativeInteger(
 }
 
 export const config = {
-  locationId: env.LOCATION_ID ?? "demo-location",
+  locationId: env.LOCATION_ID ?? "SFO",
   windowHours: Number(env.WINDOW_HOURS ?? 8),
   ingestUrl: env.INGEST_URL ?? "http://localhost:8080/ingest",
   pollConcurrency: Number(env.POLL_CONCURRENCY ?? 1),

@@ -77,7 +77,7 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
 - `docker compose -f edge/docker-compose.yml config`
 - `docker compose -f edge/docker-compose.yml up --build`
 - `curl http://localhost:8080/health`
-- `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+- `bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
 - Open Grafana at `http://localhost:3000` (`admin` / `meshcore`) to use the provisioned Meshcore dashboards.
 
 ### Service commands
@@ -92,11 +92,11 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
 Use the synthetic generator to exercise `/ingest` without Meshcore hardware:
 
 - `bun run mock-ingest -- --iterations 6 --interval-ms 2000 --repeaters 5`
-- `bun run mock-ingest -- --duration-seconds 60 --seed lab-a --device-id mock-lab-a --location-id lab-a`
+- `bun run mock-ingest -- --duration-seconds 60 --seed LAX --device-id mock-lax --location-id LAX`
 - `bun run mock-ingest -- --dry-run --iterations 1`
-- `bun run mock-ingest -- --print-reference-sql --seed lab-a --location-id lab-a --repeaters 5`
+- `bun run mock-ingest -- --print-reference-sql --seed LAX --location-id LAX --repeaters 5`
 
-The script posts batches directly to the ingest endpoint, signs each request with the same Ed25519 JWT-like token format as the edge service, and derives a deterministic demo keypair from `--seed` unless `--private-key-hex` and `--public-key-hex` are provided explicitly. Defaults target `http://localhost:8080/ingest`.
+The script posts batches directly to the ingest endpoint, signs each request with the same Ed25519 JWT-like token format as the edge service, and derives a deterministic demo keypair from `--seed` unless `--private-key-hex` and `--public-key-hex` are provided explicitly. Defaults target `http://localhost:8080/ingest`. Use uppercase three-letter IATA location IDs such as `SFO` or `LAX`.
 
 On a fresh database, seed the referenced location and repeaters before posting batches. `--print-reference-sql` prints deterministic `INSERT` statements that match the current `--seed`, `--location-id`, and `--repeaters` values so you can pipe them straight into `psql`.
 
@@ -105,15 +105,15 @@ On a fresh database, seed the referenced location and repeaters before posting b
 Compose does **not** apply `scripts/schema.sql` automatically. After TimescaleDB is up, apply it yourself, for example:
 
 - `cat scripts/schema.sql | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
-- `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+- `bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
 
 Practical local smoke path:
 
 1. `docker compose up --build timescaledb ingest grafana`
 2. `cat scripts/schema.sql | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
-3. `bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
+3. `bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
 4. `curl http://localhost:8080/health`
-5. `bun run mock-ingest -- --iterations 2 --interval-ms 1000 --location-id mock-location`
+5. `bun run mock-ingest -- --iterations 2 --interval-ms 1000 --location-id SFO`
 6. `docker compose exec -T timescaledb psql -U meshcore -d meshcore -c "SELECT COUNT(*) FROM metrics;"`
 
 ## Running edge with Docker Compose
@@ -150,6 +150,8 @@ Startup behavior defaults to `STARTUP_MODE=scheduled`, which keeps the previous 
 
 Device identity and auth signing are **not** configured through env vars anymore. At runtime the edge agent asks the Meshcore device/companion for its public key/device identity and uses the device/companion to sign auth tokens.
 
+`LOCATION_ID` must be an uppercase three-letter IATA code such as `SFO` or `LAX`.
+
 `edge/docker-compose.yml` defaults `INGEST_URL` and `COMPANION_TCP_HOST` to `host.docker.internal`, with `extra_hosts` wired to Docker's `host-gateway`, so the edge container can talk to services listening on the Docker host:
 
 - `INGEST_URL=http://host.docker.internal:8080/ingest`
@@ -159,7 +161,7 @@ Device identity and auth signing are **not** configured through env vars anymore
 
 If ingest or the Meshcore companion runs somewhere else, override those values explicitly. Example:
 
-- `LOCATION_ID=field-a INGEST_URL=http://10.0.0.20:8080/ingest COMPANION_TCP_HOST=10.0.0.30 docker compose -f edge/docker-compose.yml up --build`
+- `LOCATION_ID=LAX INGEST_URL=http://10.0.0.20:8080/ingest COMPANION_TCP_HOST=10.0.0.30 docker compose -f edge/docker-compose.yml up --build`
 
 Persistent edge files live in two places:
 

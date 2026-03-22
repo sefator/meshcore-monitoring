@@ -1,14 +1,29 @@
 import { ed25519 } from "@noble/curves/ed25519.js";
+import { z } from "zod";
 import { base64urlDecode } from "./utils/base64.js";
 import { config } from "./config.js";
+import { locationIdSchema } from "./types.js";
 
-type JwtPayload = {
-  publicKey: string;
-  iat: number;
-  exp: number;
-  deviceId?: string;
-  locationId?: string;
-};
+const jwtPayloadSchema = z
+  .object({
+    publicKey: z.string(),
+    iat: z.number(),
+    exp: z.number(),
+    deviceId: z.string().optional(),
+    locationId: locationIdSchema.optional()
+  })
+  .passthrough();
+
+type JwtPayload = z.infer<typeof jwtPayloadSchema>;
+
+function getTokenPayloadError(error: z.ZodError<JwtPayload>) {
+  const locationIssue = error.issues.find((issue) => issue.path[0] === "locationId");
+  if (locationIssue) {
+    return `invalid token locationId: ${locationIssue.message}`;
+  }
+
+  return "invalid token payload";
+}
 
 export function verifyJwtToken(token: string): { valid: boolean; payload: JwtPayload; error?: string } {
   const parts = token.split(".");
@@ -18,10 +33,20 @@ export function verifyJwtToken(token: string): { valid: boolean; payload: JwtPay
   const [encodedHeader, encodedPayload, signatureHex] = parts;
   try {
     const header = JSON.parse(base64urlDecode(encodedHeader).toString("utf8"));
-    const payload = JSON.parse(base64urlDecode(encodedPayload).toString("utf8"));
+    const parsedPayload = jwtPayloadSchema.safeParse(
+      JSON.parse(base64urlDecode(encodedPayload).toString("utf8"))
+    );
     if (header.alg !== "Ed25519" || header.typ !== "JWT") {
       return { valid: false, payload: {} as JwtPayload, error: "unsupported token" };
     }
+    if (!parsedPayload.success) {
+      return {
+        valid: false,
+        payload: {} as JwtPayload,
+        error: getTokenPayloadError(parsedPayload.error)
+      };
+    }
+    const payload = parsedPayload.data;
     const signingInput = `${encodedHeader}.${encodedPayload}`;
     const signature = Buffer.from(signatureHex, "hex");
     const publicKey = Buffer.from(payload.publicKey, "hex");

@@ -49,7 +49,7 @@ Options:
   --duration-seconds <secs>    Send until the duration elapses; cannot be used with --iterations
   --repeaters <count>          Number of mock repeaters per batch (default: 4)
   --device-id <id>             Device identifier carried in the batch and auth token
-  --location-id <id>           Location identifier carried in the batch and auth token
+  --location-id <id>           Uppercase three-letter IATA location identifier carried in the batch and auth token
   --seed <value>               Deterministic seed for repeaters and default signing keys
   --private-key-hex <hex>      Ed25519 private key; overrides seed-derived key
   --public-key-hex <hex>       Ed25519 public key; overrides seed-derived key
@@ -60,9 +60,9 @@ Options:
 
 Examples:
   bun run mock-ingest -- --iterations 6 --interval-ms 2000
-  bun run mock-ingest -- --duration-seconds 60 --repeaters 8 --seed lab-a
+  bun run mock-ingest -- --duration-seconds 60 --repeaters 8 --seed LAX --location-id LAX
   bun run mock-ingest -- --dry-run --iterations 1 --repeaters 3
-  bun run mock-ingest -- --print-reference-sql --location-id mock-location --repeaters 4
+  bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4
 `;
 
 const DEFAULTS = {
@@ -71,7 +71,7 @@ const DEFAULTS = {
   iterations: 12,
   repeaters: 4,
   deviceId: "mock-device",
-  locationId: "mock-location",
+  locationId: "SFO",
   seed: "mock-ingest-demo-seed",
   tokenTtlSeconds: 24 * 60 * 60
 } satisfies Omit<Options, "durationSeconds" | "privateKeyHex" | "publicKeyHex" | "dryRun" | "printReferenceSql">;

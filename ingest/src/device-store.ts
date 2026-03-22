@@ -1,5 +1,6 @@
 import { sql } from "./database.js";
 import type { CompanionDevice, SignatureAlgo } from "./config.js";
+import type { LocationId } from "./types.js";
 
 type DeviceRow = {
   device_id: string;
@@ -10,6 +11,14 @@ type DeviceRow = {
 };
 
 const cache = new Map<string, CompanionDevice>();
+
+export async function ensureLocationExists(locationId: LocationId) {
+  await sql`
+    INSERT INTO locations (location_id, name, network_id)
+    VALUES (${locationId}, ${locationId}, ${locationId})
+    ON CONFLICT (location_id) DO NOTHING
+  `;
+}
 
 export async function getDevice(deviceId: string) {
   if (cache.has(deviceId)) {
@@ -44,15 +53,16 @@ export async function upsertDeviceByPublicKey({
 }: {
   publicKey: string;
   deviceId?: string;
-  locationId?: string;
+  locationId?: LocationId;
 }) {
+  const resolvedDeviceId = deviceId ?? publicKey;
   await sql`
     INSERT INTO devices (device_id, public_key, signature_algo, location_id)
-    VALUES (${deviceId ?? publicKey}, ${publicKey}, ${"ed25519"}, ${locationId ?? null})
+    VALUES (${resolvedDeviceId}, ${publicKey}, ${"ed25519"}, ${locationId ?? null})
     ON CONFLICT (public_key) DO UPDATE SET location_id = COALESCE(EXCLUDED.location_id, devices.location_id)
   `;
   const device: CompanionDevice = {
-    deviceId: deviceId ?? publicKey,
+    deviceId: resolvedDeviceId,
     locationId: locationId ?? "unknown",
     publicKey,
     signatureAlgo: "ed25519",
