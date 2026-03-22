@@ -67,19 +67,42 @@ The project is aimed at low-bandwidth, unreliable mesh networks: the edge side p
 - `ingest/src/database.ts` - PostgreSQL connection setup.
 - `ingest/.env.example` - expected ingest environment variables.
 
+## Central stack configuration
+
+Before starting the root `docker-compose.yml` stack, copy the checked-in example env file:
+
+- `cp .env.example .env`
+
+`.env.example` gives a sane local default setup:
+
+- PostgreSQL / TimescaleDB user, password, and database all default to `meshcore`
+- TimescaleDB is published on host port `5432`
+- ingest listens on and publishes port `8080`
+- Grafana is published on host port `3000` with admin password `meshcore`
+
+Override those values in `.env` when needed. The port behavior is intentionally different per service:
+
+- `TIMESCALEDB_PORT` changes only the published **host** port; the container still listens on `5432`
+- `INGEST_PORT` changes the ingest runtime port and the published `host:container` mapping together
+- `GRAFANA_PORT` changes only the published **host** port; the container still listens on `3000`
+
+Central-stack examples below assume the default `.env.example` ports unless they explicitly show placeholders. If you override ports in `.env`, use those host ports in your `curl`, browser, and edge `INGEST_URL` examples.
+
 ## Common commands
 
 ### Safe inspection / validation commands
 
+- `cp .env.example .env`
 - `bun install`
 - `bun run lint`
 - `bun run --cwd ingest typecheck`
+- `docker compose config`
 - `docker compose up --build timescaledb ingest grafana`
 - `docker compose -f edge/docker-compose.yml config`
 - `docker compose -f edge/docker-compose.yml up --build`
-- `curl http://localhost:8080/health`
+- `curl http://localhost:<INGEST_PORT>/health` (default `8080`)
 - `bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
-- Open Grafana at `http://localhost:3000` (`admin` / `meshcore`) to use the provisioned Meshcore dashboards.
+- Open Grafana at `http://localhost:<GRAFANA_PORT>` (default `3000`) with `admin` / your `GRAFANA_ADMIN_PASSWORD`.
 
 ### Service commands
 
@@ -97,13 +120,15 @@ Use the synthetic generator to exercise `/ingest` without Meshcore hardware:
 - `bun run mock-ingest -- --dry-run --iterations 1`
 - `bun run mock-ingest -- --print-reference-sql --seed LAX --location-id LAX --repeaters 5`
 
-The script posts batches directly to the ingest endpoint, signs each request with the same Ed25519 JWT-like token format as the edge service, and derives a deterministic demo keypair from `--seed` unless `--private-key-hex` and `--public-key-hex` are provided explicitly. Defaults target `http://localhost:8080/ingest`. Use uppercase three-letter IATA location IDs such as `SFO` or `LAX`.
+The script posts batches directly to the ingest endpoint, signs each request with the same Ed25519 JWT-like token format as the edge service, and derives a deterministic demo keypair from `--seed` unless `--private-key-hex` and `--public-key-hex` are provided explicitly. By default it targets `http://localhost:8080/ingest`, which matches the root `.env.example`. If you override `INGEST_PORT` for the central stack, pass `--ingest-url http://localhost:<your-ingest-port>/ingest`. Use uppercase three-letter IATA location IDs such as `SFO` or `LAX`.
 
 On a fresh database, seed the referenced location and repeaters before posting batches. `--print-reference-sql` prints deterministic `INSERT` statements that match the current `--seed`, `--location-id`, and `--repeaters` values so you can pipe them straight into `psql`.
 
 ### Schema setup
 
 Compose does **not** apply `scripts/schema.sql` automatically. After TimescaleDB is up, apply it yourself, for example:
+
+The `psql` commands below assume the default `.env.example` database name and credentials. If you override `POSTGRES_USER` or `POSTGRES_DB` in the root `.env`, substitute those values.
 
 - `cat scripts/schema.sql | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
 - `bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
@@ -113,8 +138,8 @@ Practical local smoke path:
 1. `docker compose up --build timescaledb ingest grafana`
 2. `cat scripts/schema.sql | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
 3. `bun run mock-ingest -- --print-reference-sql --location-id SFO --repeaters 4 | docker compose exec -T timescaledb psql -U meshcore -d meshcore`
-4. `curl http://localhost:8080/health`
-5. `bun run mock-ingest -- --iterations 2 --interval-ms 1000 --location-id SFO`
+4. `curl http://localhost:<INGEST_PORT>/health` (default `8080`)
+5. `bun run mock-ingest -- --iterations 2 --interval-ms 1000 --location-id SFO --ingest-url http://localhost:<INGEST_PORT>/ingest` (default `8080`)
 6. `docker compose exec -T timescaledb psql -U meshcore -d meshcore -c "SELECT COUNT(*) FROM metrics;"`
 
 ## Running edge with Docker Compose
@@ -127,8 +152,9 @@ The repo now has two separate compose entry points:
 Typical local workflow:
 
 1. Start the central stack from the repo root: `docker compose up --build timescaledb ingest grafana`
-2. Start the edge client from the repo root: `docker compose -f edge/docker-compose.yml up --build`
-3. Stop the edge client with: `docker compose -f edge/docker-compose.yml down`
+2. If you changed the central-stack host ingest port in the root `.env`, set `INGEST_URL=http://host.docker.internal:<your-ingest-port>/ingest` when starting the edge client.
+3. Start the edge client from the repo root: `docker compose -f edge/docker-compose.yml up --build`
+4. Stop the edge client with: `docker compose -f edge/docker-compose.yml down`
 
 Important edge overrides in `edge/docker-compose.yml` are the same runtime env vars used by `edge/src/config.ts`:
 
@@ -155,7 +181,7 @@ Device identity and auth signing are **not** configured through env vars anymore
 
 `edge/docker-compose.yml` defaults `INGEST_URL` and `COMPANION_TCP_HOST` to `host.docker.internal`, with `extra_hosts` wired to Docker's `host-gateway`, so the edge container can talk to services listening on the Docker host:
 
-- `INGEST_URL=http://host.docker.internal:8080/ingest`
+- `INGEST_URL=http://host.docker.internal:8080/ingest` (override this if the root central stack uses a different `INGEST_PORT`)
 - `COMPANION_CONNECTION=tcp`
 - `COMPANION_TCP_HOST=host.docker.internal`
 - `COMPANION_TCP_PORT=5000`

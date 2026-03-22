@@ -2,32 +2,32 @@ services:
   timescaledb:
     image: timescale/timescaledb:2.14.2-pg15
     environment:
-      POSTGRES_PASSWORD: meshcore
-      POSTGRES_USER: meshcore
-      POSTGRES_DB: meshcore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meshcore}
+      POSTGRES_USER: ${POSTGRES_USER:-meshcore}
+      POSTGRES_DB: ${POSTGRES_DB:-meshcore}
     volumes:
       - timescale-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${TIMESCALEDB_PORT:-5432}:5432"
 
   ingest:
     build:
       context: ./ingest
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql://meshcore:meshcore@timescaledb:5432/meshcore
-      INGEST_PORT: 8080
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-meshcore}:${POSTGRES_PASSWORD:-meshcore}@timescaledb:5432/${POSTGRES_DB:-meshcore}"
+      INGEST_PORT: ${INGEST_PORT:-8080}
     depends_on:
       - timescaledb
     ports:
-      - "8080:8080"
+      - "${INGEST_PORT:-8080}:${INGEST_PORT:-8080}"
 
   grafana:
     image: grafana/grafana:10.3.1
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: meshcore
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-meshcore}
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/meshcore/meshcore-overview.json
     depends_on:
       - timescaledb
