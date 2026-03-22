@@ -76,9 +76,19 @@ export async function upsertDeviceByPublicKey({
 }) {
   const resolvedDeviceId = deviceId ?? publicKey;
   await sql`
+    WITH updated AS (
+      UPDATE devices
+      SET
+        device_id = ${resolvedDeviceId},
+        public_key = ${publicKey},
+        signature_algo = ${"ed25519"},
+        location_id = COALESCE(${locationId ?? null}, devices.location_id)
+      WHERE device_id = ${resolvedDeviceId} OR public_key = ${publicKey}
+      RETURNING device_id
+    )
     INSERT INTO devices (device_id, public_key, signature_algo, location_id)
-    VALUES (${resolvedDeviceId}, ${publicKey}, ${"ed25519"}, ${locationId ?? null})
-    ON CONFLICT (public_key) DO UPDATE SET location_id = COALESCE(EXCLUDED.location_id, devices.location_id)
+    SELECT ${resolvedDeviceId}, ${publicKey}, ${"ed25519"}, ${locationId ?? null}
+    WHERE NOT EXISTS (SELECT 1 FROM updated)
   `;
   const device: CompanionDevice = {
     deviceId: resolvedDeviceId,
