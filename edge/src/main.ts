@@ -23,6 +23,91 @@ async function buildBatch(
   return batcher.build();
 }
 
+type CollectionSource = "startup" | "window";
+type BatchPayload = Awaited<ReturnType<typeof buildBatch>>;
+
+function logCollectionSummary(
+  source: CollectionSource,
+  startedAt: Date,
+  endedAt: Date,
+  repeaterCount: number,
+  successfulReads: number,
+  neighborsCollected: number,
+) {
+  const failedReads = repeaterCount - successfulReads;
+
+  log.info(
+    source === "startup"
+      ? "startup collection summary"
+      : "collection window summary",
+    `from=${startedAt.toISOString()}`,
+    `to=${endedAt.toISOString()}`,
+    `repeaters=${repeaterCount}`,
+    `successful_reads=${successfulReads}`,
+    `failed_reads=${failedReads}`,
+    `neighbors=${neighborsCollected}`,
+  );
+}
+
+async function sendBatchWithSummary(
+  source: CollectionSource,
+  batch: BatchPayload,
+  repeaterCount: number,
+  successfulReads: number,
+) {
+  const heartbeatOnly = successfulReads === 0;
+
+  if (heartbeatOnly) {
+    log.info(
+      source === "startup"
+        ? "sending heartbeat-only startup batch"
+        : "sending heartbeat-only window batch",
+      batch.batch_id,
+      "reason=no_successful_repeater_reads",
+      `repeaters=${repeaterCount}`,
+      `failed_reads=${repeaterCount}`,
+    );
+  } else {
+    log.info(
+      source === "startup" ? "sending startup batch" : "sending batch",
+      batch.batch_id,
+    );
+  }
+
+  let sendSucceeded = false;
+  try {
+    await sendBatch(batch);
+    sendSucceeded = true;
+  } catch (err) {
+    log.warn("batch send failed", batch.batch_id, `source=${source}`, err);
+  }
+
+  log.info("flushing queued batches", `after_batch=${batch.batch_id}`, `source=${source}`);
+
+  let flushSucceeded = false;
+  try {
+    await flushQueue();
+    flushSucceeded = true;
+  } catch (err) {
+    log.warn(
+      "queued batch flush failed",
+      `after_batch=${batch.batch_id}`,
+      `source=${source}`,
+      err,
+    );
+  }
+
+  log.info(
+    source === "startup"
+      ? "startup batch delivery summary"
+      : "window batch delivery summary",
+    batch.batch_id,
+    `send=${sendSucceeded ? "ok" : "failed"}`,
+    `flush=${flushSucceeded ? "ok" : "failed"}`,
+    `heartbeat_only=${heartbeatOnly}`,
+  );
+}
+
 async function runStartupCollection() {
   if (config.startup.mode === "scheduled") {
     return;
@@ -62,30 +147,39 @@ async function runStartupCollection() {
       repeater.repeaterId,
       `sequence=${index + 1}/${repeaters.length}`,
     );
-    const { metrics: metric, neighbors: repeaterNeighbors } =
-      await readRepeaterMetrics(repeater);
-    metrics.push(metric);
-    neighbors.push(...repeaterNeighbors);
-    metricsCollected += 1;
-    neighborsCollected += repeaterNeighbors.length;
-    log.info(
-      "startup radio read complete",
-      repeater.repeaterId,
-      `sequence=${index + 1}/${repeaters.length}`,
-      `metrics=${metricsCollected}`,
-      `neighbors=${repeaterNeighbors.length}`,
-      `startup_neighbors=${neighborsCollected}`,
-    );
+    try {
+      const { metrics: metric, neighbors: repeaterNeighbors } =
+        await readRepeaterMetrics(repeater);
+      metrics.push(metric);
+      neighbors.push(...repeaterNeighbors);
+      metricsCollected += 1;
+      neighborsCollected += repeaterNeighbors.length;
+      log.info(
+        "startup radio read complete",
+        repeater.repeaterId,
+        `sequence=${index + 1}/${repeaters.length}`,
+        `metrics=${metricsCollected}`,
+        `neighbors=${repeaterNeighbors.length}`,
+        `startup_neighbors=${neighborsCollected}`,
+      );
+    } catch (err) {
+      log.warn(
+        "startup radio read failed",
+        repeater.repeaterId,
+        `sequence=${index + 1}/${repeaters.length}`,
+        err,
+      );
+    }
   }
 
   const startupEndedAt = new Date();
-  log.info(
-    "startup collection complete",
-    `mode=${config.startup.mode}`,
-    `from=${startupStartedAt.toISOString()}`,
-    `to=${startupEndedAt.toISOString()}`,
-    `metrics=${metricsCollected}`,
-    `neighbors=${neighborsCollected}`,
+  logCollectionSummary(
+    "startup",
+    startupStartedAt,
+    startupEndedAt,
+    repeaters.length,
+    metricsCollected,
+    neighborsCollected,
   );
   log.info("building startup batch");
   const batch = await buildBatch(
@@ -102,25 +196,7 @@ async function runStartupCollection() {
     `window_from=${batch.window.from}`,
     `window_to=${batch.window.to}`,
   );
-  log.info("sending startup batch", batch.batch_id);
-  try {
-    await sendBatch(batch);
-    log.info("startup batch send complete", batch.batch_id);
-  } catch (err) {
-    log.warn("startup batch send failed", batch.batch_id);
-    throw err;
-  }
-  log.info(
-    "flushing queued batches",
-    `after_batch=${batch.batch_id}`,
-    "source=startup",
-  );
-  await flushQueue();
-  log.info(
-    "queued batch flush complete",
-    `after_batch=${batch.batch_id}`,
-    "source=startup",
-  );
+  await sendBatchWithSummary("startup", batch, repeaters.length, metricsCollected);
 }
 
 async function runWindow() {
@@ -158,27 +234,37 @@ async function runWindow() {
       item.repeater.repeaterId,
       `scheduled_at=${item.scheduledAt.toISOString()}`,
     );
-    const { metrics: metric, neighbors: repeaterNeighbors } =
-      await readRepeaterMetrics(item.repeater);
-    metrics.push(metric);
-    neighbors.push(...repeaterNeighbors);
-    metricsCollected += 1;
-    neighborsCollected += repeaterNeighbors.length;
-    log.info(
-      "scheduled radio read complete",
-      item.repeater.repeaterId,
-      `metrics=${metricsCollected}`,
-      `neighbors=${repeaterNeighbors.length}`,
-      `window_neighbors=${neighborsCollected}`,
-    );
+    try {
+      const { metrics: metric, neighbors: repeaterNeighbors } =
+        await readRepeaterMetrics(item.repeater);
+      metrics.push(metric);
+      neighbors.push(...repeaterNeighbors);
+      metricsCollected += 1;
+      neighborsCollected += repeaterNeighbors.length;
+      log.info(
+        "scheduled radio read complete",
+        item.repeater.repeaterId,
+        `metrics=${metricsCollected}`,
+        `neighbors=${repeaterNeighbors.length}`,
+        `window_neighbors=${neighborsCollected}`,
+      );
+    } catch (err) {
+      log.warn(
+        "scheduled radio read failed",
+        item.repeater.repeaterId,
+        `scheduled_at=${item.scheduledAt.toISOString()}`,
+        err,
+      );
+    }
   }
 
-  log.info(
-    "collection window complete",
-    `from=${windowStart.toISOString()}`,
-    `to=${windowEnd.toISOString()}`,
-    `metrics=${metricsCollected}`,
-    `neighbors=${neighborsCollected}`,
+  logCollectionSummary(
+    "window",
+    windowStart,
+    windowEnd,
+    schedule.length,
+    metricsCollected,
+    neighborsCollected,
   );
   log.info("building batch for window");
   const batch = await buildBatch(windowStart, windowEnd, metrics, neighbors);
@@ -190,17 +276,7 @@ async function runWindow() {
     `window_from=${batch.window.from}`,
     `window_to=${batch.window.to}`,
   );
-  log.info("sending batch", batch.batch_id);
-  try {
-    await sendBatch(batch);
-    log.info("batch send complete", batch.batch_id);
-  } catch (err) {
-    log.warn("batch send failed", batch.batch_id);
-    throw err;
-  }
-  log.info("flushing queued batches", `after_batch=${batch.batch_id}`);
-  await flushQueue();
-  log.info("queued batch flush complete", `after_batch=${batch.batch_id}`);
+  await sendBatchWithSummary("window", batch, schedule.length, metricsCollected);
 }
 
 async function main() {
